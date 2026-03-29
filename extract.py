@@ -27,7 +27,7 @@ KOREADER_PATH = f"{REMOTE_BASE}/koreader/settings"
 DB_NAME = "vocabulary_builder.sqlite3"
 LOCAL_DB = "data/vocab.sqlite3"
 BOOKS_DIR = "data/books"
-APP_DIR   = "app"
+APP_DIR   = "docs"
 
 
 def run_adb(args):
