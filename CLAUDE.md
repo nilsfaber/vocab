@@ -28,4 +28,11 @@ think of a concept where for each word i can generate an image of the sentence w
 analyse the words that are not known to generate additional words that the user
 probably doesnt know.
 
-## 4 - 
+## 4 - add a method to use the local vocab.sqlite3 if no device is connected
+
+## 5 - fix detailed word view
+clicking closes the view but is also assigned to expanding the word.
+
+## 6 - show log for the step after parsing the epubs
+
+## 7 - do something with not found words in dictionary api

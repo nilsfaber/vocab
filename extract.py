@@ -11,6 +11,16 @@ from html.parser import HTMLParser
 
 _SENTENCE_BREAK = re.compile(r'(?<=[.!?])\s+')
 
+
+def _progress(current, total, label="", width=40):
+    filled = int(width * current / total) if total else 0
+    bar = "█" * filled + "░" * (width - filled)
+    pct = int(100 * current / total) if total else 0
+    sys.stdout.write(f"\r  [{bar}] {pct:3d}%  {label:<40}")
+    sys.stdout.flush()
+    if current == total:
+        sys.stdout.write("\n")
+
 ADB = "C:/git/platform-tools/adb.exe"
 REMOTE_BASE = "/sdcard"
 KOREADER_PATH = f"{REMOTE_BASE}/koreader/settings"
@@ -55,27 +65,20 @@ def pick_device(devices):
 
 
 def check_koreader(device):
-    print("🔍 Looking for KOReader folder...")
     output = run_adb(["-s", device, "shell", "ls", REMOTE_BASE])
-
     if "koreader" not in output:
         print("❌ KOReader folder not found in /sdcard/")
         sys.exit(1)
-
-    print("✅ Found koreader folder")
 
 
 def pull_database(device):
     remote_file = f"{KOREADER_PATH}/{DB_NAME}"
 
-    print("📥 Pulling database...")
     run_adb(["-s", device, "pull", remote_file, LOCAL_DB])
-
     if not os.path.exists(LOCAL_DB):
         print("❌ Failed to pull database")
         sys.exit(1)
-
-    print(f"✅ Database saved as {LOCAL_DB}")
+    print("✅ Database pulled")
 
 
 def pull_books(device):
@@ -85,18 +88,18 @@ def pull_books(device):
 
     os.makedirs(BOOKS_DIR, exist_ok=True)
 
-    pulled = {}  # filename -> local path
-    for remote_path in paths:
+    pulled = {}
+    new_count = 0
+    for i, remote_path in enumerate(paths, 1):
         filename = remote_path.split("/")[-1]
         local_path = f"{BOOKS_DIR}/{filename}"
         if not os.path.exists(local_path):
-            print(f"  📥 {filename}")
             run_adb(["-s", device, "pull", remote_path, local_path])
-        else:
-            print(f"  ✔ {filename} (already cached)")
+            new_count += 1
         pulled[filename] = local_path
+        _progress(i, len(paths), filename[:40])
 
-    print(f"✅ {len(pulled)} epub(s) ready")
+    print(f"✅ {len(pulled)} epub(s) ready ({new_count} new)")
     return pulled
 
 
@@ -175,13 +178,14 @@ def export_json(output=None):
         try:
             with open(output, encoding="utf-8") as f:
                 for e in json.load(f):
-                    if e.get("definition"):
+                    if e.get("enriched"):
                         existing_defs[e["word"]] = {
-                            "definition":     e["definition"],
+                            "definition":     e.get("definition", ""),
                             "part_of_speech": e.get("part_of_speech", ""),
                             "example":        e.get("example", ""),
                             "synonyms":       e.get("synonyms", []),
                             "antonyms":       e.get("antonyms", []),
+                            "enriched":       True,
                         }
         except Exception:
             pass
@@ -207,28 +211,29 @@ def export_json(output=None):
     epubs = find_local_epubs()
     if epubs:
         print(f"📖 Parsing {len(epubs)} epub(s)...")
-        paragraph_cache = {}  # epub_path -> (display_name, [paragraphs])
-        for epub_path, display in epubs.items():
-            print(f"  {display}")
+        paragraph_cache = {}
+        for i, (epub_path, display) in enumerate(epubs.items(), 1):
+            _progress(i, len(epubs), display[:40])
             paragraph_cache[epub_path] = (display, extract_paragraphs(epub_path))
 
         for entry in rows:
-            word_lower = entry["word"].lower()
+            pattern = re.compile(r'\b' + re.escape(entry["word"]) + r'\w*', re.IGNORECASE)
             entry["occurrences"] = [
                 {"book": display, "paragraph": trim_to_context(para, entry["word"])}
                 for display, paragraphs in paragraph_cache.values()
                 for para in paragraphs
-                if word_lower in para.lower()
+                if pattern.search(para)
             ]
     else:
-        print("⚠ No epub files found in data/books/ — skipping occurrences")
+        print("⚠ No epub files found in data/books/")
         for entry in rows:
             entry["occurrences"] = []
 
     with open(output, "w", encoding="utf-8") as f:
         json.dump(rows, f, ensure_ascii=False, indent=2)
 
-    print(f"✅ Exported {len(rows)} words to {output}")
+    total_occs = sum(len(e["occurrences"]) for e in rows)
+    print(f"✅ Exported {len(rows)} words, {total_occs} occurrences → {output}")
 
 
 def fetch_definitions(output=None):
@@ -237,13 +242,16 @@ def fetch_definitions(output=None):
     with open(output, encoding="utf-8") as f:
         entries = json.load(f)
 
-    updated = 0
-    for entry in entries:
-        # skip if already fully enriched (definition + synonyms key present)
-        if entry.get("definition") and "synonyms" in entry:
-            continue
+    pending = [e for e in entries if not e.get("enriched")]
+    if not pending:
+        print("✅ Definitions already up to date")
+        return
 
+    print(f"📚 Fetching definitions for {len(pending)} word(s)...")
+    updated = 0
+    for i, entry in enumerate(pending, 1):
         word = entry["word"]
+        _progress(i, len(pending), word)
         url = f"https://api.dictionaryapi.dev/api/v2/entries/en/{urllib.request.quote(word)}"
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "vocab-builder/1.0"})
@@ -267,22 +275,22 @@ def fetch_definitions(output=None):
                             antonyms.update(d.get("antonyms", []))
                     entry["synonyms"] = sorted(synonyms)
                     entry["antonyms"] = sorted(antonyms)
+                    entry["enriched"] = True
                     updated += 1
-                    print(f"  ✅ {word}: {entry['definition'][:70]}")
         except urllib.error.HTTPError as e:
             if e.code == 404:
-                print(f"  — {word}: not found")
+                entry["enriched"] = True
             else:
-                print(f"  ⚠ {word}: HTTP {e.code}")
+                sys.stdout.write(f"\n  ⚠ {word}: HTTP {e.code}\n")
         except Exception as e:
-            print(f"  ⚠ {word}: {e}")
+            sys.stdout.write(f"\n  ⚠ {word}: {e}\n")
 
         time.sleep(0.3)
 
     with open(output, "w", encoding="utf-8") as f:
         json.dump(entries, f, ensure_ascii=False, indent=2)
 
-    print(f"✅ Added definitions for {updated} words in {output}")
+    print(f"✅ Definitions fetched: {updated} found, {len(pending) - updated} not in dictionary")
 
 
 def inspect_database():

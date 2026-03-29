@@ -315,16 +315,15 @@
     details.occurrence summary {
       padding: 0.5rem 0.8rem;
       list-style: none;
-      display: flex;
-      gap: 0.5rem;
-      align-items: baseline;
+      cursor: pointer;
+      line-height: 1.55;
     }
 
     details.occurrence summary::before {
-      content: '›';
-      color: var(--border);
+      content: '› ';
+      color: var(--text-muted);
       font-size: 0.9rem;
-      flex-shrink: 0;
+      display: inline-block;
       transition: transform 0.15s;
     }
 
