@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \":*)",
+      "Bash(py -c \":*)",
+      "Bash(gh auth:*)"
+    ]
+  }
+}
