@@ -1,4 +1,4 @@
 data/
-app/vocab.json
+docs/vocab.json
 __pycache__/
 *.pyc
