@@ -28,11 +28,15 @@
       --radius: 10px;
     }
 
+    html, body { height: 100%; }
+
     body {
       background: var(--bg);
       color: var(--text);
       font-family: 'Segoe UI', system-ui, sans-serif;
-      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
     /* ── Header ── */
@@ -101,10 +105,10 @@
     #status-bar input[type=file] { display: none; }
 
     /* ── Main ── */
-    main { padding: 1.25rem; }
+    main { flex: 1; overflow: hidden; display: flex; flex-direction: column; padding: 1.25rem; }
 
     /* ── Overview ── */
-    #overview { display: none; }
+    #overview { display: none; flex: 1; flex-direction: column; overflow-y: auto; }
 
     .toolbar {
       display: flex;
@@ -398,7 +402,7 @@
     .btn-secondary:hover { border-color: var(--text-muted); color: var(--text); }
 
     /* ── Game ── */
-    #game { display: none; max-width: 580px; margin: 0 auto; }
+    #game { display: none; flex: 1; flex-direction: column; max-width: 580px; margin: 0 auto; width: 100%; overflow: hidden; }
 
     .game-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
 
@@ -418,11 +422,14 @@
     #next-btn:hover { border-color: var(--accent); color: var(--text); }
 
     .clue-card {
+      flex: 1;
+      overflow-y: auto;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 1.35rem;
       margin-bottom: 1.25rem;
+      min-height: 6rem;
     }
 
     .clue-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.65rem; }
@@ -508,7 +515,7 @@
 </main>
 
 <!-- Detail modal -->
-<div class="modal-overlay" id="detail-overlay" onclick="closeModal('detail-overlay')">
+<div class="modal-overlay" id="detail-overlay" onclick="closeModal('detail-overlay', event)">
   <div class="modal" id="detail-modal">
     <button class="close-btn" onclick="closeModal('detail-overlay')">✕</button>
     <div id="detail-content"></div>
@@ -516,7 +523,7 @@
 </div>
 
 <!-- Add word modal -->
-<div class="modal-overlay" id="add-overlay" onclick="closeModal('add-overlay')">
+<div class="modal-overlay" id="add-overlay" onclick="closeModal('add-overlay', event)">
   <div class="modal" id="add-modal" style="max-width:480px">
     <button class="close-btn" onclick="closeModal('add-overlay')">✕</button>
     <h2>Add word</h2>
@@ -661,8 +668,8 @@
     document.querySelectorAll('.mode-btn').forEach((btn, i) => {
       btn.classList.toggle('active', ['overview', 'game'][i] === m);
     });
-    document.getElementById('overview').style.display = m === 'overview' ? 'block' : 'none';
-    document.getElementById('game').style.display      = m === 'game'     ? 'block' : 'none';
+    document.getElementById('overview').style.display = m === 'overview' ? 'flex' : 'none';
+    document.getElementById('game').style.display      = m === 'game'     ? 'flex' : 'none';
     if (m === 'overview') renderGrid();
     if (m === 'game')     nextRound();
   }
@@ -873,6 +880,7 @@
   function gamePool() {
     return combined.filter(v =>
       !hidden.has(v.word) &&
+      v.part_of_speech !== 'noun' &&
       (v.definition || v.prev_context || v.next_context || v.highlight)
     );
   }
@@ -897,7 +905,7 @@
       document.getElementById('clue-label').textContent = 'Which word matches this definition?';
       document.getElementById('clue-text').innerHTML = pos + esc(target.definition);
       document.getElementById('clue-source').textContent =
-        target.example ? `"${target.example.replace(new RegExp(escRe(target.word), 'gi'), '___')}"` : '';
+        target.example ? `"${target.example.replace(new RegExp('\\b' + escRe(target.word) + '\\b', 'gi'), '___')}"` : '';
     } else {
       document.getElementById('clue-label').textContent = 'What word fits here?';
       document.getElementById('clue-text').innerHTML = buildContext(target, false);
@@ -918,6 +926,7 @@
     attempts++;
     document.getElementById('attempts').textContent = attempts;
     document.getElementById('next-btn').textContent = 'Next →';
+    document.activeElement?.blur();
 
     const correct = word === currentAnswer;
     if (correct) score++;
@@ -930,8 +939,8 @@
     });
 
     document.getElementById('game-feedback').innerHTML = correct
-      ? `${randomPraise()} <button class="hide-learned-btn" id="hide-game-btn" onclick="hideFromGame('${escAttr(currentAnswer)}')">Mark as learned</button>`
-      : `The answer was &ldquo;${esc(currentAnswer)}&rdquo;`;
+      ? `${randomPraise()} <button class="hide-learned-btn" id="hide-game-btn" onclick="hideFromGame('${escAttr(currentAnswer)}')">Mark as learned</button> <button class="hide-learned-btn" onclick="openDetail('${escAttr(currentAnswer)}')">View card</button>`
+      : `The answer was &ldquo;${esc(currentAnswer)}&rdquo; <button class="hide-learned-btn" onclick="openDetail('${escAttr(currentAnswer)}')">View card</button>`;
 
     const entry = combined.find(v => v.word === currentAnswer);
     if (entry) {
@@ -970,7 +979,7 @@
       return esc(v.prev_context || '') + marker + esc(v.next_context || '');
     }
     if (v.highlight) {
-      const re = new RegExp(`(${escRe(v.word)})`, 'i');
+      const re = new RegExp(`(\\b${escRe(v.word)}\\b)`, 'i');
       return re.test(v.highlight)
         ? esc(v.highlight).replace(re, reveal ? '<mark>$1</mark>' : '<span class="blank">$1</span>')
         : esc(v.highlight);
@@ -980,12 +989,12 @@
 
   function keySentence(text, word) {
     const parts = text.split(/(?<=[.!?])\s+/);
-    const wl = word.toLowerCase();
-    return parts.find(s => s.toLowerCase().includes(wl)) || parts[0] || text;
+    const re = new RegExp('\\b' + escRe(word), 'i');
+    return parts.find(s => re.test(s)) || parts[0] || text;
   }
 
   function hlWord(text, word) {
-    return esc(text).replace(new RegExp(`(${escRe(word)})`, 'gi'), '<mark>$1</mark>');
+    return esc(text).replace(new RegExp(`(\\b${escRe(word)}\\b)`, 'gi'), '<mark>$1</mark>');
   }
 
   function esc(s) {

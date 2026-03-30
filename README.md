@@ -6,7 +6,7 @@ Extract vocabulary words from a KOReader device, enrich them with dictionary def
 
 ```
 vocab/
-├── app/               # Web app — serve this folder
+├── docs/              # Web app — serve this folder
 │   ├── index.html
 │   ├── manifest.json
 │   ├── sw.js
@@ -41,13 +41,13 @@ python extract.py
 This will:
 - Pull `vocabulary_builder.sqlite3` from the device → `data/vocab.sqlite3`
 - Find and pull all `.epub` files from `/sdcard` → `data/books/`
-- Export enriched vocabulary data → `app/vocab.json`
+- Export enriched vocabulary data → `docs/vocab.json`
 - Fetch definitions from the Free Dictionary API for any word not yet defined
 
 4. Serve the app:
 
 ```bash
-cd app
+cd docs
 python -m http.server 8000
 ```
 
