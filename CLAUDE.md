@@ -22,16 +22,6 @@ Ordered by priority (complexity vs. gain). Tackle top-down.
 
 ### Medium effort
 
-#### 11 - Move Add button into overview toolbar
-Remove from top bar; place it inside the overview section (e.g. as an empty card or toolbar button).
-
-#### 15 - Add sort modes for overview
-Add sort options: alphabetical, score/fail rate (from game challenges).
-Alongside existing: date added, occurrence count.
-
-#### 9 - Preserve challenge when switching between game and overview
-Switching to overview and back should not reset the current challenge.
-Visiting overview mid-challenge should not count as a score.
 
 ---
 
@@ -103,5 +93,17 @@ Game mode should not scroll if content fits. Layout should be stable:
 
 #### 0 - Fix PWA manifest link
 Update any remaining `app/` references to `docs/` in manifest or service worker.
+
+#### 11 - Move Add button into overview toolbar
+Remove from top bar; place it inside the overview section (e.g. as an empty card or toolbar button).
+
+#### 15 - Add sort modes for overview
+Add sort options: alphabetical, score/fail rate (from game challenges).
+Alongside existing: date added, occurrence count.
+
+#### 9 - Preserve challenge when switching between game and overview
+Switching to overview and back should not reset the current challenge.
+Visiting overview mid-challenge should not count as a score.
+
 
 ---

@@ -477,7 +477,6 @@
     <button class="mode-btn active" onclick="setMode('overview')">Overview</button>
     <button class="mode-btn" onclick="setMode('game')">Game</button>
   </div>
-  <button class="add-btn" onclick="openAddModal()">+ Add</button>
 </header>
 
 <div id="status-bar">
@@ -492,8 +491,11 @@
       <select id="sort-by" onchange="renderGrid()">
         <option value="date">Date added</option>
         <option value="occurrences">Occurrences</option>
+        <option value="alpha">Alphabetical</option>
+        <option value="score">Score</option>
       </select>
       <label class="toggle-label"><input type="checkbox" id="show-hidden" onchange="renderGrid()"> Hidden</label>
+      <button class="add-btn" onclick="openAddModal()">+ Add</button>
     </div>
     <div class="count-label" id="count-label"></div>
     <div class="grid" id="grid"></div>
@@ -572,15 +574,19 @@
   let score = 0, attempts = 0;
   let roundAnswered = false;
   let currentAnswer = '';
+  let peekedOverview = false; // true if overview was visited during an active challenge
 
-  const LS_KEY    = 'vocab_manual';
-  const LS_HIDDEN = 'vocab_hidden';
+  const LS_KEY     = 'vocab_manual';
+  const LS_HIDDEN  = 'vocab_hidden';
+  const LS_RESULTS = 'vocab_game_results';
   let hidden = new Set();
+  let gameResults = {}; // { word: { correct: N, wrong: N } }
 
   // ── Boot ───────────────────────────────────────────────────────────────────
 
   loadManual();
   loadHidden();
+  loadResults();
 
   fetch('vocab.json')
     .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
@@ -615,6 +621,14 @@
 
   function saveHidden() {
     try { localStorage.setItem(LS_HIDDEN, JSON.stringify([...hidden])); } catch { console.warn('localStorage full — hidden list not saved'); }
+  }
+
+  function loadResults() {
+    try { gameResults = JSON.parse(localStorage.getItem(LS_RESULTS) || '{}'); } catch { gameResults = {}; }
+  }
+
+  function saveResults() {
+    try { localStorage.setItem(LS_RESULTS, JSON.stringify(gameResults)); } catch { console.warn('localStorage full — game results not saved'); }
   }
 
   function toggleHideWord(word) {
@@ -670,8 +684,14 @@
     });
     document.getElementById('overview').style.display = m === 'overview' ? 'flex' : 'none';
     document.getElementById('game').style.display      = m === 'game'     ? 'flex' : 'none';
-    if (m === 'overview') renderGrid();
-    if (m === 'game')     nextRound();
+    if (m === 'overview') {
+      renderGrid();
+      if (currentAnswer && !roundAnswered) peekedOverview = true;
+    }
+    if (m === 'game') {
+      // Only start a new round if there's no active unanswered challenge
+      if (!currentAnswer || roundAnswered) nextRound();
+    }
   }
 
   // ── Overview ───────────────────────────────────────────────────────────────
@@ -688,6 +708,18 @@
 
     if (sortBy === 'occurrences') {
       filtered = [...filtered].sort((a, b) => (b.occurrences?.length || 0) - (a.occurrences?.length || 0));
+    } else if (sortBy === 'alpha') {
+      filtered = [...filtered].sort((a, b) => a.word.localeCompare(b.word));
+    } else if (sortBy === 'score') {
+      filtered = [...filtered].sort((a, b) => {
+        const ra = gameResults[a.word], rb = gameResults[b.word];
+        const ta = ra ? ra.correct + ra.wrong : 0;
+        const tb = rb ? rb.correct + rb.wrong : 0;
+        if (!ta && !tb) return 0;
+        if (!ta) return 1;   // untried words last
+        if (!tb) return -1;
+        return (rb.wrong / tb) - (ra.wrong / ta); // highest fail rate first
+      });
     }
 
     const hiddenCount = [...combined].filter(v => hidden.has(v.word)).length;
@@ -706,6 +738,7 @@
           ${v.part_of_speech ? `<div class="pos">${esc(v.part_of_speech)}</div>` : ''}
           <div class="book">${esc(v.title || '—')}</div>
           ${v.occurrences?.length ? `<div class="pos" style="color:var(--accent2)">${v.occurrences.length} occurrences</div>` : ''}
+          ${(() => { const r = gameResults[v.word]; return r ? `<div class="pos" style="color:${r.wrong > r.correct ? 'var(--wrong)' : 'var(--correct)'}">${r.correct}✓ ${r.wrong}✗</div>` : ''; })()}
         </div>
       `;
     }).join('');
@@ -894,6 +927,8 @@
     }
 
     roundAnswered = false;
+    peekedOverview = false;
+    currentAnswer = '';
     document.getElementById('game-feedback').textContent = '';
     document.getElementById('next-btn').textContent = 'Skip →';
 
@@ -929,8 +964,15 @@
     document.activeElement?.blur();
 
     const correct = word === currentAnswer;
-    if (correct) score++;
-    document.getElementById('score').textContent = score;
+    if (!peekedOverview) {
+      if (correct) score++;
+      document.getElementById('score').textContent = score;
+      const r = gameResults[currentAnswer] = gameResults[currentAnswer] || { correct: 0, wrong: 0 };
+      r[correct ? 'correct' : 'wrong']++;
+      saveResults();
+    } else {
+      document.getElementById('score').textContent = score;
+    }
 
     document.querySelectorAll('.choice-btn').forEach(btn => {
       btn.disabled = true;
