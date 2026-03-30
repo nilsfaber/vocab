@@ -44,7 +44,7 @@
       display: flex;
       align-items: center;
       gap: 0.75rem;
-      padding: 0.85rem 1.25rem;
+      padding: 0.5rem 0.5rem;
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       position: sticky;
@@ -54,16 +54,17 @@
 
     header h1 { font-size: 1rem; font-weight: 600; color: var(--accent); flex: 1; }
 
-    .mode-btns { display: flex; gap: 0.35rem; }
+    .mode-btns { display: flex; gap: 1rem; }
 
     .mode-btn {
-      padding: 0.35rem 0.85rem;
+      padding: 0.35rem 0.35rem;
+      width: 6rem;
       border: 1px solid var(--border);
       border-radius: 6px;
       background: transparent;
       color: var(--text-muted);
       cursor: pointer;
-      font-size: 0.8rem;
+      font-size: 1rem;
       transition: all 0.15s;
     }
 
@@ -105,7 +106,7 @@
     #status-bar input[type=file] { display: none; }
 
     /* ── Main ── */
-    main { flex: 1; overflow: hidden; display: flex; flex-direction: column; padding: 1.25rem; }
+    main { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
 
     /* ── Overview ── */
     #overview { display: none; flex: 1; flex-direction: column; overflow-y: auto; }
@@ -113,7 +114,7 @@
     .toolbar {
       display: flex;
       gap: 0.5rem;
-      margin-bottom: 0.85rem;
+      margin: 0.85rem;
       align-items: center;
     }
 
@@ -129,7 +130,7 @@
 
     .toolbar input:focus { outline: none; border-color: var(--accent); }
 
-    .count-label { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.75rem; }
+    .count-label { font-size: 0.78rem; color: var(--text-muted); margin: 0rem 0.85rem ; }
 
     .toolbar select {
       padding: 0.45rem 0.6rem;
@@ -185,12 +186,12 @@
 
     .hide-learned-btn {
       margin-left: 0.5rem;
-      padding: 0.2rem 0.6rem;
+      padding: 0.6rem 0.6rem;
       background: transparent;
       border: 1px solid var(--border);
       border-radius: 6px;
       color: var(--text-muted);
-      font-size: 0.78rem;
+      font-size: 1rem;
       cursor: pointer;
     }
 
@@ -200,6 +201,7 @@
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
       gap: 0.65rem;
+      margin: 0.85rem;
     }
 
     .word-card {
@@ -379,6 +381,7 @@
 
     .btn-primary {
       padding: 0.5rem 1.2rem;
+      margin-bottom: 0.85rem;
       background: var(--accent);
       border: none;
       border-radius: 6px;
@@ -391,6 +394,7 @@
 
     .btn-secondary {
       padding: 0.5rem 1rem;
+      margin-bottom: 0.85rem;
       background: transparent;
       border: 1px solid var(--border);
       border-radius: 6px;
@@ -402,21 +406,22 @@
     .btn-secondary:hover { border-color: var(--text-muted); color: var(--text); }
 
     /* ── Game ── */
-    #game { display: none; flex: 1; flex-direction: column; max-width: 580px; margin: 0 auto; width: 100%; overflow: hidden; }
+    #game { display: none; flex: 1; flex-direction: column; margin: 0 auto; width: 100%; overflow: hidden; }
 
-    .game-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+    .game-header { display: flex; justify-content: space-between; align-items: center; margin: 0.85rem; }
 
     .score-display { font-size: 0.85rem; color: var(--text-muted); }
     .score-display span { color: var(--text); font-weight: 600; }
 
     #next-btn {
-      padding: 0.35rem 0.9rem;
+      padding: 0.8rem 0.9rem;
+      margin: 0.85rem;
       background: var(--surface2);
       border: 1px solid var(--border);
       border-radius: 6px;
       color: var(--text-muted);
       cursor: pointer;
-      font-size: 0.82rem;
+      font-size: 1rem;
     }
 
     #next-btn:hover { border-color: var(--accent); color: var(--text); }
@@ -428,9 +433,10 @@
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 1.35rem;
-      margin-bottom: 1.25rem;
+      margin: 0.85rem;
       min-height: 6rem;
     }
+
 
     .clue-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.65rem; }
 
@@ -447,7 +453,7 @@
 
     .clue-source { margin-top: 0.65rem; font-size: 0.73rem; color: var(--text-muted); font-style: italic; }
 
-    .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+    .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;margin: 0.85rem; }
 
     .choice-btn {
       padding: 0.8rem 0.9rem;
@@ -466,13 +472,13 @@
     .choice-btn.wrong   { border-color: var(--wrong);   background: rgba(224,92,92,0.12);  color: var(--wrong); }
     .choice-btn:disabled { cursor: default; }
 
-    .game-feedback { margin-top: 0.9rem; min-height: 1.4rem; text-align: center; font-size: 0.875rem; color: var(--text-muted); }
+    .game-feedback { margin: 0.85rem; min-height: 8rem; text-align: center; font-size: 1rem; color: var(--text-muted); }
   </style>
 </head>
 <body>
 
 <header>
-  <h1>Vocabulary Builder</h1>
+  <!-- <h1>Vocabulary Builder</h1> -->
   <div class="mode-btns">
     <button class="mode-btn active" onclick="setMode('overview')">Overview</button>
     <button class="mode-btn" onclick="setMode('game')">Game</button>
@@ -490,8 +496,8 @@
       <input type="text" id="search" placeholder="Search words or books…" oninput="renderGrid()">
       <select id="sort-by" onchange="renderGrid()">
         <option value="date">Date added</option>
-        <option value="occurrences">Occurrences</option>
-        <option value="alpha">Alphabetical</option>
+        <option value="occurrences">Occurrence</option>
+        <option value="alpha">A - Z</option>
         <option value="score">Score</option>
       </select>
       <label class="toggle-label"><input type="checkbox" id="show-hidden" onchange="renderGrid()"> Hidden</label>
@@ -504,7 +510,6 @@
   <section id="game">
     <div class="game-header">
       <div class="score-display">Score: <span id="score">0</span> / <span id="attempts">0</span></div>
-      <button id="next-btn" onclick="nextRound()">Skip →</button>
     </div>
     <div class="clue-card">
       <div class="clue-label" id="clue-label">What word fits here?</div>
@@ -513,6 +518,7 @@
     </div>
     <div class="choices" id="choices"></div>
     <div class="game-feedback" id="game-feedback"></div>
+    <button id="next-btn" onclick="nextRound()">Skip →</button>
   </section>
 </main>
 

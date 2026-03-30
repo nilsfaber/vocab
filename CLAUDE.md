@@ -19,13 +19,87 @@ Keep the setup section accurate; users follow it verbatim.
 Ordered by priority (complexity vs. gain). Tackle top-down.
 
 ---
+### Easy fixes
+#### Overview
+Change hidden concept, add a second grid below the
+current overview where all the words that are marked as learned reside. make that grid collapsible
+#### Detail card
+The h2 and close button should stay on top and visible,
+so you see which word you are on and can close it at any time
 
-### Medium effort
+#### Game UI
+Increase the game feedback size, figure out a max size for the clue card and to get a sensible height. now the distance between challenge and multiple choice answer is too big. make sure to have the answers always be in the same position between challenges
+Move the next button to the bottom .
+
+#### Top Bar 
+ Move the overview toolbar to the header, switch it to a game toolbar when going to the game.
+in game mode for now just show the score.
+
+#### Settings view
+For both add a settings button to the top right and for now create a shared settings view.
+add a reset stats button
+add a to toggle to switch between themes:
+dark/light/e-paper 
+use the following settings as inspiration:
+/* --- CSS Custom Properties --- */
+:root {
+  --bg-primary: #1a1a2e;
+  --bg-secondary: #16213e;
+  --bg-card: #0f3460;
+  --bg-surface: #1a1a3e;
+  --accent: #e94560;
+  --accent-hover: #ff6b81;
+  --accent-dim: #c23152;
+  --text-primary: #eaeaea;
+  --text-secondary: #a0a0b8;
+  --text-muted: #6c6c8a;
+  --success: #2ed573;
+  --warning: #ffa502;
+  --danger: #ff4757;
+}
+
+/* ── Light theme ────────────────────────────────────── */
+:root[data-theme="light"] {
+  --bg-primary:    #d8dae2;  /* page background — mid gray */
+  --bg-secondary:  #cdd0da;  /* slightly darker */
+  --bg-card:       #bfc3cf;  /* card surfaces */
+  --bg-surface:    #e2e4ec;  /* inputs, feed items — lighter than page */
+  --accent:        #c0273f;
+  --accent-hover:  #e03050;
+  --accent-dim:    #a01f35;
+  --text-primary:  #1a1a2e;
+  --text-secondary:#3a3a5a;
+  --text-muted:    #6a6a8a;
+  --success:       #1a8a3a;
+  --warning:       #b86000;
+  --danger:        #cc2233;
+}
+/* ── E-paper theme ──────────────────────────────────── */
+:root[data-theme="epaper"] { /* primarly use borders to deleniate buttons regions*/
+  --bg-primary:    #ffffff; 
+  --bg-secondary:  #f8f8f8;
+  --bg-card:       #efefef;
+  --bg-surface:    #f4f4f4;
+  --accent:        #111111;
+  --accent-hover:  #333333;
+  --accent-dim:    #555555;
+  --text-primary:  #111111;
+  --text-secondary:#444444;
+  --text-muted:    #888888;
+  --success:       #1a6b1a;
+  --warning:       #7a5200;
+  --danger:        #9a1515;
+}
 
 
 ---
 
 ### Higher effort (split as needed)
+
+#### 12 - Improve definition card
+- Add location of word occurrence in book (chapter / % progress)
+- Move book title to context section, not directly under the word
+- Show scored / failed counts per word
 
 #### 10 - File Import/Export of data
 **10a** — Export: download vocab + manual words as JSON from localStorage.
@@ -40,13 +114,11 @@ Sharing game stats is optional.
 **2a** — Detect when no device is connected, show a clear message/fallback UI.
 **2b** — Read local `vocab.sqlite3` directly in the browser using sql.js.
 
-#### 12 - Improve definition card
-- Add location of word occurrence in book (chapter / % progress)
-- Move book title to context section, not directly under the word
-- Show scored / failed counts per word
-
 #### 13 - Fetch translations
 Add option to fetch translations for configured languages (Dutch initially).
+
+#### 13 - Check if wiki article exists for word
+link it when it exists
 
 ---
 
