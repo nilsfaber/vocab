@@ -1,101 +1,196 @@
 # Vocabulary Builder
 
-Extract vocabulary words from a KOReader device, enrich them with dictionary definitions and in-book occurrences, and review them in a PWA.
+Extract vocabulary from a KOReader device, enrich with definitions and images, and review in a PWA.
+
+## Three pillars
+
+| | Folder | Runs on |
+|---|---|---|
+| **Vocab extraction** | `extract.py` (repo root) | Dev machine |
+| **Image generation** | `imagegen/` | Dev machine (GPU) |
+| **Web app** | `docs/` | Browser / GitHub Pages |
+
+---
 
 ## Folder structure
 
 ```
 vocab/
-├── docs/              # Web app — serve this folder
+├── extract.py              # Vocab extraction + enrichment
+├── setup.sh                # Dependency checker
+│
+├── docs/                   # Deployable PWA (GitHub Pages)
 │   ├── index.html
-│   ├── manifest.json
 │   ├── sw.js
-│   ├── vocab.json     # generated output (gitignored)
-│   └── icons/
-├── data/              # local cache — gitignored
-│   ├── vocab.sqlite3  # pulled from device
-│   └── books/         # pulled epub files
-├── extract.py         # extraction & enrichment script
-├── .gitignore
-├── CLAUDE.md
-└── README.md
+│   ├── manifest.json
+│   ├── icons/
+│   ├── vocab.json          # gitignored — generated
+│   └── images/             # gitignored — generated compressed images
+│
+├── imagegen/               # Dev-only image generation
+│   ├── index.html          # Management UI
+│   ├── server.py           # Local API server
+│   ├── gemma4b_sdxl_refiner.py
+│   ├── mistralnemo_sdxl.py
+│   ├── manifest.json       # gitignored — image registry
+│   └── <word>/             # gitignored — per-word image dirs
+│
+└── data/                   # gitignored — local cache
+    ├── vocab.sqlite3
+    └── books/
 ```
+
+---
 
 ## Requirements
 
 - Python 3.9+
-- Android Debug Bridge (adb) — set the path in `extract.py` under `ADB`
-- KOReader installed on a connected Android device with USB debugging enabled
-- Internet connection for fetching definitions
+- Android Debug Bridge (adb) — for device sync
+- `pngquant` — for image compression
+- Ollama with `gemma4:e2b` pulled — for image generation
+- ComfyUI with SDXL base + refiner checkpoints — for image generation
 
-## Setup
+Run the setup checker:
+```bash
+bash setup.sh
+```
 
-1. Connect your Android device via USB and enable USB debugging.
-2. Edit the `ADB` path at the top of `extract.py` if adb is not at `C:/git/platform-tools/adb.exe`.
-3. Run the extraction script from the repo root:
+---
+
+## Pillar 1 — Vocab extraction
+
+### From a KOReader device
+
+1. Connect Android device via USB with USB debugging enabled.
+2. Edit the `ADB` path at the top of `extract.py` if needed.
+3. Run from the repo root:
 
 ```bash
 python extract.py
 ```
 
-This will:
-- Pull `vocabulary_builder.sqlite3` from the device → `data/vocab.sqlite3`
-- Find and pull all `.epub` files from `/sdcard` → `data/books/`
-- Export enriched vocabulary data → `docs/vocab.json`
-- Fetch definitions from the Free Dictionary API for any word not yet defined
+This:
+- Pulls `vocabulary_builder.sqlite3` → `data/vocab.sqlite3`
+- Pulls all `.epub` files from `/sdcard` → `data/books/`
+- Exports enriched vocab → `docs/vocab.json`
+- Fetches definitions from [dictionaryapi.dev](https://dictionaryapi.dev/) for new words
 
-4. Serve the app:
+Re-running is safe — existing definitions and cached epubs are skipped.
 
+### Adding a word manually
+
+Add the word string to `data/manual_words.json` (create it if it doesn't exist):
+```json
+["ephemeral", "sanguine"]
+```
+Then re-run `python extract.py`. Definitions are fetched automatically.
+
+---
+
+## Pillar 2 — Image generation
+
+### Prerequisites
+
+```bash
+source venv/bin/activate
+ollama serve               # keep running
+python ComfyUI/main.py     # keep running
+```
+
+### Start the imagegen server
+
+Always run the server instead of a plain HTTP server — it serves the UI and exposes the run API.
+
+```bash
+# From repo root:
+python imagegen/server.py          # uses test/vocab.json
+python imagegen/server.py --prod   # uses docs/vocab.json
+```
+
+Open `http://localhost:8765`.
+
+### Run a script from the command line
+
+```bash
+python imagegen/gemma4b_sdxl_refiner.py --prod           # all words
+python imagegen/gemma4b_sdxl_refiner.py --words brethren alacrity  # specific words
+python imagegen/gemma4b_sdxl_refiner.py --prod --force   # regenerate all
+```
+
+### imagegen UI
+
+- **Word list** — sorted alphabetically. Dots: 🔴 no default set, 🟠 flagged for regen, 🔵 new unseen images.
+- **Word view** — click any word to see its images. The word title overlays the current image.
+- **Alternatives** — thumbnail grid below the image. Click a thumbnail to set it as the default **and** write it to `docs/images/<word>.png`.
+- **Run panel** — select a script, optionally edit the base prompt, click **▶ Run**. Output streams live. New images appear without page reload.
+- **Definition editor** — edit the definition inline and save. Used when re-running generation for that word.
+- **Flag button** (🔁) next to word title — adds/removes the word from the regen queue. Download the queue as JSON from the sidebar.
+- **Columns slider** — adjust gallery column count (persisted).
+- **Fullscreen** — expands the current image or gallery.
+
+### Image file layout
+
+```
+imagegen/
+└── <word>/
+    └── DDMMYY_N_<scriptname>.png    # e.g. 050426_1_gemma4b_sdxl_refiner.png
+```
+
+The `imagegen/manifest.json` tracks all variants, prompts, scenes, and the selected default per word.
+
+### Write to docs
+
+Selecting an image in the UI automatically compresses it with pngquant and writes it to `docs/images/<word>.png`.
+
+---
+
+## Pillar 3 — Web app (`docs/`)
+
+Serve locally:
 ```bash
 cd docs
 python -m http.server 8000
 ```
+Or use the imagegen server which also serves any static path.
 
-5. Open `http://localhost:8000` in a browser.
+Open `http://localhost:8000`.
 
-## Re-running
+### Overview
 
-Re-running `extract.py` is safe:
-- Already-cached epub files are skipped (pull only new ones).
-- Words that already have a definition are skipped.
+Searchable, sortable grid of all vocabulary words. Sort by date added, occurrence count, alphabetical, or game score.
 
-## Web app
-
-### Overview mode
-
-A searchable grid of all vocabulary words. Click any card to open a detail panel showing:
-
-- Definition and part of speech (from Free Dictionary API)
-- Example sentence
-- Context from the original KOReader lookup (sentence surrounding the word)
-- All paragraph occurrences of the word across every book in your library, grouped by book
-- Review stats (review count, streak)
+Click a card to open the detail panel showing:
+- Definition, part of speech, example sentence
+- Original KOReader lookup context
+- All paragraph occurrences across your library
+- Game stats
+- Hero image (if generated)
+- Wikipedia link (live lookup, cached per session)
 
 ### Game mode
 
-A flashcard-style quiz:
-- If a definition is available, it is shown as the clue with part of speech and an example sentence (with the word blanked out).
-- Otherwise, the lookup context sentence is shown with the word blanked out.
-- Choose the correct word from four options.
-- After answering, the full definition and context are revealed.
+Flashcard-style quiz. Nouns excluded.
+- Clue: definition with word blanked, or context sentence with word blanked.
+- Pick the correct word from four options.
+- After answering, full definition and context are revealed.
+- Mark correct answers as **Learned** to remove from future rounds.
 
 ### Manual words
 
-Click **+ Add** in the header to add a word manually without a device. Fields:
-- Word (required)
-- Part of speech
-- Definition
-- Context sentence — use `___` as placeholder for the word
-- Source / book title
+Click **+ Add** in the toolbar to add a word without a device. Fields: word, part of speech, definition, context sentence (`___` as placeholder), source. Stored in `localStorage`, merged at runtime with `vocab.json`. Editable and deletable from the detail panel.
 
-Manual words are stored in `localStorage` and merged with the loaded `vocab.json`. They appear with an amber "manual" badge. They can be edited or deleted from their detail panel.
+### Settings
+
+- **Theme** — Dark (default), Light, E-Paper. Persisted in `localStorage`.
+- **Reset game stats** — clears all correct/wrong counts.
+- **Parse log** — view timestamped output from the last `extract.py` run.
 
 ### PWA / offline
 
-The app is installable as a PWA. On mobile, use "Add to Home Screen". Once installed:
-- The app shell (HTML, SW, manifest, icons) is cached and works offline.
-- `vocab.json` is served network-first and cached as a fallback.
+Installable via "Add to Home Screen". App shell cached by service worker. `vocab.json` is network-first with offline fallback.
+
+---
 
 ## Dictionary data
 
-Definitions are fetched from [dictionaryapi.dev](https://dictionaryapi.dev/) — free, no API key required. Only English words are supported. Words not found in the dictionary are silently skipped and can be filled in manually via the app.
+Definitions from [dictionaryapi.dev](https://dictionaryapi.dev/) — free, no API key. English only. Unfound words are skipped and can be filled manually in the app or via `data/manual_words.json`.

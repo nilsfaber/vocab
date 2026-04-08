@@ -1,4 +1,26 @@
 data/
+test/
+venv/
+
+# imagegen: ignore generated content, track source files
+imagen/
+imagegen/defaults.json
+imagegen/regen_queue.json
+imagegen/scenes.json
+imagegen/words/
+
+# docs: generated output
 app/vocab.json
+docs/parse_log.json
+docs/vocab.json
+docs/images/
+images-hi-res/
+
+# Python
 __pycache__/
 *.pyc
+
+# External
+ComfyUI/
+.python-version
+.vscode/settings.json

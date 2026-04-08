@@ -18,7 +18,7 @@
       --surface: #1a1d27;
       --surface2: #252836;
       --border: #2e3245;
-      --accent: #7c6af7;
+      --accent: #7f7f7f;
       --accent2: #56cfb2;
       --text: #e8eaf6;
       --text-muted: #8b90a8;
@@ -26,6 +26,34 @@
       --wrong: #e05c5c;
       --manual: #f5a623;
       --radius: 10px;
+    }
+
+    :root[data-theme="light"] {
+      --bg: #d4d7e0;
+      --surface: #bfc3cf;
+      --surface2: #e2e4ec;
+      --border: #9fa4b8;
+      --accent: #7f7f7f;
+      --accent2: #56cfb2;
+      --text: #1a1a2e;
+      --text-muted: #6a6a8a;
+      --correct: #1a8a3a;
+      --wrong: #cc2233;
+      --manual: #b86000;
+    }
+
+    :root[data-theme="epaper"] {
+      --bg: #ffffff;
+      --surface: #f4f4f4;
+      --surface2: #ebebeb;
+      --border: #cccccc;
+      --accent: #111111;
+      --accent2: #56cfb2;
+      --text: #111111;
+      --text-muted: #888888;
+      --correct: #1a6b1a;
+      --wrong: #9a1515;
+      --manual: #7a5200;
     }
 
     html, body { height: 100%; }
@@ -43,8 +71,9 @@
     header {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
-      padding: 0.5rem 0.5rem;
+      flex-wrap: wrap;
+      gap: 0.4rem 0.5rem;
+      padding: 0.5rem;
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       position: sticky;
@@ -52,9 +81,12 @@
       z-index: 100;
     }
 
-    header h1 { font-size: 1rem; font-weight: 600; color: var(--accent); flex: 1; }
+    @media (max-aspect-ratio: 4/1) {
+      .mode-btns { flex: 1; }
+      #overview-tools, #game-tools { width: 100%; }
+    }
 
-    .mode-btns { display: flex; gap: 1rem; }
+    .mode-btns { display: flex; gap: 0.5rem; }
 
     .mode-btn {
       padding: 0.35rem 0.35rem;
@@ -83,6 +115,43 @@
     }
 
     .add-btn:hover { background: rgba(245,166,35,0.1); }
+
+    /* ── Header tools (toolbar in header) ── */
+    header .toolbar { flex: 1; margin: 0; gap: 0.4rem; min-width: 0; }
+
+    #game-tools { flex: 1; display: flex; align-items: center; justify-content: center; }
+
+    .settings-btn {
+      padding: 0.35rem 0.55rem;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-muted);
+      font-size: 1rem;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+
+    .settings-btn:hover { border-color: var(--accent); color: var(--text); }
+
+    /* ── Settings modal ── */
+    .settings-section { margin-bottom: 1rem; }
+    .settings-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.5rem; }
+    .theme-btns { display: flex; gap: 0.5rem; }
+    .theme-btn {
+      flex: 1;
+      padding: 0.45rem 0.5rem;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .theme-btn:hover { border-color: var(--accent); color: var(--text); }
+    .theme-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
     /* ── Status bar (offline/load) ── */
     #status-bar {
@@ -172,17 +241,39 @@
       border-color: rgba(224,92,92,0.25);
     }
 
-    .word-card.hidden-word { opacity: 0.4; }
-    .hidden-badge {
+    .learned-badge {
       position: absolute;
       top: 0.5rem;
       right: 0.5rem;
       font-size: 0.6rem;
-      color: var(--text-muted);
-      background: var(--surface2);
+      color: var(--accent2);
+      background: rgba(86,207,178,0.1);
       border-radius: 4px;
       padding: 0.1rem 0.35rem;
     }
+
+    .learned-summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 0.5rem 0.4rem;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      border-top: 1px solid var(--border);
+      margin-top: 0.4rem;
+    }
+
+    .learned-summary::before {
+      content: '›';
+      display: inline-block;
+      transition: transform 0.15s;
+      font-size: 1rem;
+    }
+
+    #learned-section[open] .learned-summary::before { transform: rotate(90deg); }
+    .learned-summary::-webkit-details-marker { display: none; }
 
     .hide-learned-btn {
       margin-left: 0.5rem;
@@ -206,21 +297,123 @@
 
     .word-card {
       background: var(--surface);
-      border: 1px solid var(--border);
+      border: 2px solid var(--border);
       border-radius: var(--radius);
       padding: 0.9rem;
       cursor: pointer;
       transition: border-color 0.15s, transform 0.1s;
       position: relative;
+      overflow: hidden;
+      min-height: 5.5rem;
+      display: flex;
+      flex-direction: column;
     }
 
     .word-card:hover { border-color: var(--accent); transform: translateY(-2px); }
     .word-card.manual { border-color: rgba(245,166,35,0.35); }
     .word-card.manual:hover { border-color: var(--manual); }
 
-    .word-card .word { font-size: 1.05rem; font-weight: 600; }
+    .word-card.has-img::before {
+      content: '';
+      position: absolute;
+      inset: -8px;
+      background-image: var(--card-img);
+      background-size: cover;
+      background-position: center;
+      filter: blur(0px);
+      z-index: 0;
+    }
+    .word-card.has-img::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(8, 10, 18, 0.479);
+      z-index: 1;
+    }
+    /* text above overlay; exclude badges which stay position:absolute */
+    .word-card.has-img > *:not(.manual-badge):not(.learned-badge):not(.occ-dot) { position: relative; z-index: 2; }
+    .word-card.has-img .manual-badge,
+    .word-card.has-img .learned-badge,
+    .word-card.has-img .occ-dot { z-index: 2; }
+    .word-card.has-img .word,
+    .word-card.has-img .pos,
+    .word-card.has-img .book {
+      text-shadow: 0 0 10px rgba(0,0,0,0.95),0 0 10px rgba(0,0,0,0.95);
+    }
+
+    .occ-dot {
+      position: absolute;
+      bottom: 0.5rem;
+      right: 0.5rem;
+      color: var(--accent2);
+      font-size: 0.8rem;
+      font-weight: 800;
+      border-radius: 10px;
+      padding: 0.1rem 0.45rem;
+      line-height: 1.5;
+    }
+    .word-card.has-img .occ-dot { background: rgba(255,255,255,0.12); }
+
+    /* ── Detail hero (full-bleed image) ── */
+    #detail-hero {
+      display: none;
+      position: relative;
+      flex-shrink: 0;
+    }
+    #detail-hero.active { display: block; }
+    #detail-hero img {
+      width: 100%;
+      display: block;
+      max-height: 260px;
+      object-fit: cover;
+      object-position: center;
+    }
+    #detail-hero::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 2.5rem;
+      background: linear-gradient(transparent, var(--surface));
+      pointer-events: none;
+    }
+    #detail-hero .hero-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(transparent 35%, rgba(0,0,0,0.72) 100%);
+      display: flex;
+      align-items: flex-end;
+      padding: 1rem 1.5rem;
+      gap: 0.5rem;
+    }
+    #detail-hero .hero-overlay h2 {
+      color: #fff;
+      font-size: 3rem;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.9);
+      margin: 0;
+      flex: 1;
+    }
+    #detail-hero .hero-close {
+      position: absolute;
+      top: 0.7rem;
+      right: 0.7rem;
+      background: rgba(0,0,0,0.38);
+      border-radius: 50%;
+      width: 2rem;
+      height: 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+    }
+
+    .word-card .word { font-size: 1.2rem; font-weight: 700; color: var(--text); }
     .word-card .pos { font-size: 0.7rem; color: var(--accent2); margin-top: 0.15rem; }
-    .word-card .book { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .word-card .book { font-size: 0.75rem; color: var(--text); opacity: 0.55; margin-top: 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .word-card.has-img .word { color: #fff; opacity: 1; }
+    .word-card.has-img .book { color: #fff; opacity: 0.8; }
     .word-card .streak { font-size: 0.68rem; color: var(--manual); margin-top: 0.35rem; }
     .word-card .manual-badge {
       position: absolute;
@@ -246,6 +439,7 @@
     }
 
     .modal-overlay.open { display: flex; }
+    #detail-overlay { backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 
     .modal {
       background: var(--surface);
@@ -273,7 +467,103 @@
 
     .close-btn:hover { color: var(--text); }
 
-    #detail-modal h2 { font-size: 1.7rem; color: var(--accent); margin-bottom: 0.2rem; }
+    .detail-header .close-btn { position: static; flex-shrink: 0; }
+
+    .modal-nav-wrapper {
+      display: flex;
+      align-items: stretch;
+      gap: 0.75rem;
+      width: 100%;
+      max-width: calc(640px + 7rem);
+      padding: 0 0.5rem;
+    }
+    .side-nav {
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-size: 2.2rem;
+      width: 2.6rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      opacity: 0.6;
+      line-height: 1;
+      padding: 0;
+      border-radius: var(--radius);
+      transition: opacity 0.15s, background 0.15s;
+    }
+    .side-nav:hover { opacity: 1; background: var(--surface2); }
+    @media (max-width: 600px) { .side-nav { display: none; } }
+    .hero-nav {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.65);
+      font-size: 2rem;
+      cursor: pointer;
+      padding: 0 0.4rem;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .hero-nav:hover { color: #fff; }
+    .hero-pills {
+      position: absolute;
+      bottom: 1rem;
+      right: 1rem;
+      display: flex;
+      gap: 0.4rem;
+      align-items: center;
+    }
+    .hero-learned {
+      border-radius: 2rem;
+      background: rgba(0,0,0,0.45);
+      border: 2px solid rgba(255,255,255,0.25);
+      color: rgba(255,255,255,0.6);
+      font-size: 0.8rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.35rem 0.75rem;
+      white-space: nowrap;
+    }
+    .hero-learned.active {
+      background: var(--correct);
+      border-color: var(--correct);
+      color: #fff;
+    }
+
+    /* Detail modal: sticky word title + close button */
+    #detail-modal {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      padding: 0;
+    }
+
+    .detail-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1.1rem 1.5rem 0.9rem;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .detail-header h2 {
+      font-size: 1.7rem;
+      color: var(--accent);
+      flex: 1;
+      margin: 0;
+    }
+
+    #detail-content {
+      overflow-y: auto;
+      flex: 1;
+      padding: 1.25rem 1.5rem;
+    }
+
     #detail-modal .meta { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 1.1rem; }
 
     .detail-section { margin-bottom: 1.1rem; }
@@ -406,42 +696,51 @@
     .btn-secondary:hover { border-color: var(--text-muted); color: var(--text); }
 
     /* ── Game ── */
-    #game { display: none; flex: 1; flex-direction: column; margin: 0 auto; width: 100%; overflow: hidden; }
-
-    .game-header { display: flex; justify-content: space-between; align-items: center; margin: 0.85rem; }
+    #game {
+      display: none; flex: 1; flex-direction: column;
+      align-items: center; justify-content: center;
+      width: 100%; overflow: hidden; padding: 0.85rem; box-sizing: border-box;
+    }
+    .game-inner {
+      width: 100%; max-width: 640px;
+      display: flex; flex-direction: column; gap: 0.65rem;
+    }
 
     .score-display { font-size: 0.85rem; color: var(--text-muted); }
     .score-display span { color: var(--text); font-weight: 600; }
 
     #next-btn {
-      padding: 0.8rem 0.9rem;
-      margin: 0.85rem;
+      padding: 0.85rem 1rem;
       background: var(--surface2);
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: var(--radius);
       color: var(--text-muted);
       cursor: pointer;
       font-size: 1rem;
+      width: 100%;
+      opacity: 0.4;
+      transition: opacity 0.2s, border-color 0.15s, color 0.15s;
     }
-
-    #next-btn:hover { border-color: var(--accent); color: var(--text); }
+    #next-btn.answered { opacity: 1; }
+    #next-btn:hover { border-color: var(--accent); color: var(--text); opacity: 1; }
 
     .clue-card {
-      flex: 1;
-      overflow-y: auto;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 1.35rem;
-      margin: 0.85rem;
-      min-height: 6rem;
+      height: 280px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
+    .clue-label-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-shrink: 0; }
+    .clue-label-row #clue-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+    #pool-label { font-size: 0.65rem; color: var(--text-muted); opacity: 0.6; }
 
-    .clue-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.65rem; }
-
-    .clue-text { font-size: 1rem; line-height: 1.7; color: var(--text-muted); }
-    .clue-text em { color: var(--accent2); font-style: normal; font-size: 0.8rem; }
+    .clue-text { font-size: 1.05rem; line-height: 1.7; color: var(--text); flex: 1; overflow-y: auto; }
+    .clue-text em { color: var(--accent2); font-style: normal; font-size: 0.85rem; }
 
     .clue-text .blank {
       display: inline-block;
@@ -451,20 +750,43 @@
       user-select: none;
     }
 
-    .clue-source { margin-top: 0.65rem; font-size: 0.73rem; color: var(--text-muted); font-style: italic; }
+    .clue-card-footer {
+      margin-top: 0.75rem;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      min-height: 1.6em;
+    }
+    .clue-source { font-size: 0.9rem; color: var(--text-muted); font-style: italic; flex: 1; }
+    .clue-solved-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+    .clue-solved-actions button {
+      font-size: 0.72rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 2rem;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text-muted);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .clue-solved-actions button:hover { border-color: var(--accent); color: var(--text); }
+    .clue-solved-actions .btn-learned.active { background: var(--correct); border-color: var(--correct); color: #fff; }
 
-    .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;margin: 0.85rem; }
+    .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; }
 
     .choice-btn {
-      padding: 0.8rem 0.9rem;
+      padding: 1.05rem 1rem;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       color: var(--text);
-      font-size: 0.95rem;
+      font-size: 1rem;
       cursor: pointer;
       transition: border-color 0.15s, background 0.15s;
       text-align: center;
+      min-height: 3.2rem;
     }
 
     .choice-btn:hover:not(:disabled) { border-color: var(--accent); background: var(--surface2); }
@@ -472,17 +794,46 @@
     .choice-btn.wrong   { border-color: var(--wrong);   background: rgba(224,92,92,0.12);  color: var(--wrong); }
     .choice-btn:disabled { cursor: default; }
 
-    .game-feedback { margin: 0.85rem; min-height: 8rem; text-align: center; font-size: 1rem; color: var(--text-muted); }
+    .game-feedback { display: none; }
+
+    #parse-log-output {
+      margin-top: 0.6rem;
+      font-size: 0.7rem;
+      font-family: monospace;
+      max-height: 180px;
+      overflow-y: auto;
+      background: var(--surface2);
+      border-radius: var(--radius);
+      padding: 0.5rem 0.7rem;
+      color: var(--text-muted);
+      display: none;
+    }
+    #parse-log-output.visible { display: block; }
+    .log-t { color: var(--accent2); margin-right: 0.4em; }
+    .log-run { font-size: 0.65rem; color: var(--text-muted); margin-bottom: 0.4rem; }
   </style>
 </head>
 <body>
 
 <header>
-  <!-- <h1>Vocabulary Builder</h1> -->
   <div class="mode-btns">
     <button class="mode-btn active" onclick="setMode('overview')">Overview</button>
     <button class="mode-btn" onclick="setMode('game')">Game</button>
   </div>
+  <div class="toolbar" id="overview-tools">
+    <input type="text" id="search" placeholder="Search…" oninput="renderGrid()">
+    <select id="sort-by" onchange="renderGrid()">
+      <option value="date">Date added</option>
+      <option value="occurrences">Occurrence</option>
+      <option value="alpha">A - Z</option>
+      <option value="score">Score</option>
+    </select>
+    <button class="add-btn" onclick="openAddModal()">+ Add</button>
+  </div>
+  <div id="game-tools" style="display:none">
+    <div class="score-display">Score: <span id="score">0</span> / <span id="attempts">0</span></div>
+  </div>
+  <button class="settings-btn" onclick="openSettings()" title="Settings">⚙</button>
 </header>
 
 <div id="status-bar">
@@ -492,41 +843,57 @@
 
 <main>
   <section id="overview">
-    <div class="toolbar">
-      <input type="text" id="search" placeholder="Search words or books…" oninput="renderGrid()">
-      <select id="sort-by" onchange="renderGrid()">
-        <option value="date">Date added</option>
-        <option value="occurrences">Occurrence</option>
-        <option value="alpha">A - Z</option>
-        <option value="score">Score</option>
-      </select>
-      <label class="toggle-label"><input type="checkbox" id="show-hidden" onchange="renderGrid()"> Hidden</label>
-      <button class="add-btn" onclick="openAddModal()">+ Add</button>
-    </div>
     <div class="count-label" id="count-label"></div>
     <div class="grid" id="grid"></div>
+    <div id="not-found-container"></div>
+    <div id="learned-container"></div>
   </section>
 
   <section id="game">
-    <div class="game-header">
-      <div class="score-display">Score: <span id="score">0</span> / <span id="attempts">0</span></div>
+    <div class="game-inner">
+      <div class="clue-card">
+        <div class="clue-label-row">
+          <span id="clue-label">What word fits here?</span>
+          <span id="pool-label"></span>
+        </div>
+        <div class="clue-text" id="clue-text"></div>
+        <div class="clue-card-footer">
+          <div class="clue-source" id="clue-source"></div>
+          <div class="clue-solved-actions" id="clue-solved-actions"></div>
+        </div>
+      </div>
+      <div class="choices" id="choices"></div>
+      <div class="game-feedback" id="game-feedback"></div>
+      <button id="next-btn" onclick="nextRound()">Skip →</button>
     </div>
-    <div class="clue-card">
-      <div class="clue-label" id="clue-label">What word fits here?</div>
-      <div class="clue-text" id="clue-text"></div>
-      <div class="clue-source" id="clue-source"></div>
-    </div>
-    <div class="choices" id="choices"></div>
-    <div class="game-feedback" id="game-feedback"></div>
-    <button id="next-btn" onclick="nextRound()">Skip →</button>
   </section>
 </main>
 
 <!-- Detail modal -->
 <div class="modal-overlay" id="detail-overlay" onclick="closeModal('detail-overlay', event)">
-  <div class="modal" id="detail-modal">
-    <button class="close-btn" onclick="closeModal('detail-overlay')">✕</button>
-    <div id="detail-content"></div>
+  <div class="modal-nav-wrapper">
+    <button class="side-nav" id="detail-prev" onclick="navigateDetail(-1)">‹</button>
+    <div class="modal" id="detail-modal">
+      <div id="detail-hero">
+        <div class="hero-overlay">
+          <h2></h2>
+        </div>
+        <button class="close-btn hero-close" onclick="closeModal('detail-overlay')">✕</button>
+        <div class="hero-pills">
+          <a class="hero-learned" id="detail-wiki-btn" href="#" target="_blank" rel="noopener" style="display:none;text-decoration:none">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            <span>Wikipedia</span>
+          </a>
+          <button class="hero-learned" id="detail-learned-btn" onclick="toggleLearnedFromDetail()"><span id="detail-learned-check">✓</span><span id="detail-learned-label">Mark as learned</span></button>
+        </div>
+      </div>
+      <div class="detail-header" id="detail-header-bar">
+        <h2 id="detail-title"></h2>
+        <button class="close-btn" onclick="closeModal('detail-overlay')">✕</button>
+      </div>
+      <div id="detail-content"></div>
+    </div>
+    <button class="side-nav" id="detail-next" onclick="navigateDetail(1)">›</button>
   </div>
 </div>
 
@@ -571,20 +938,54 @@
   </div>
 </div>
 
+<!-- Settings modal -->
+<div class="modal-overlay" id="settings-overlay" onclick="closeModal('settings-overlay', event)">
+  <div class="modal" style="max-width:360px">
+    <button class="close-btn" onclick="closeModal('settings-overlay')">✕</button>
+    <h2 style="font-size:1.1rem;margin-bottom:1.25rem;color:var(--text)">Settings</h2>
+    <div class="settings-section">
+      <div class="settings-label">Theme</div>
+      <div class="theme-btns">
+        <button class="theme-btn" data-theme="" onclick="applyTheme('')">Dark</button>
+        <button class="theme-btn" data-theme="light" onclick="applyTheme('light')">Light</button>
+        <button class="theme-btn" data-theme="epaper" onclick="applyTheme('epaper')">E-Paper</button>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">Data</div>
+      <button class="btn-secondary" style="color:var(--wrong);border-color:var(--wrong)" onclick="resetStats()">Reset game stats</button>
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">Parse log</div>
+      <button class="btn-secondary" onclick="loadParseLog()">Load log</button>
+      <div id="parse-log-output"></div>
+    </div>
+  </div>
+</div>
+
 <script>
   // ── State ──────────────────────────────────────────────────────────────────
   let vocab = [];          // from vocab.json
   let manual = [];         // from localStorage
   let combined = [];       // vocab + manual, merged
+  let wordImages = new Set(); // words that have a generated image
   let mode = 'overview';
   let score = 0, attempts = 0;
   let roundAnswered = false;
   let currentAnswer = '';
   let peekedOverview = false; // true if overview was visited during an active challenge
+  const recentWords = [];    // session: last N words shown, avoid immediate repeats
+  const RECENT_CAP  = 8;
+  let detailList = [];  // ordered word strings currently shown in overview
+  let detailIdx  = -1;
+  let currentDetailWord = '';
 
   const LS_KEY     = 'vocab_manual';
   const LS_HIDDEN  = 'vocab_hidden';
   const LS_RESULTS = 'vocab_game_results';
+  const LS_THEME   = 'vocab_theme';
+  const LS_VIEW    = 'vocab_view';
+  const wikiCache  = {}; // word → url string or null
   let hidden = new Set();
   let gameResults = {}; // { word: { correct: N, wrong: N } }
 
@@ -593,18 +994,24 @@
   loadManual();
   loadHidden();
   loadResults();
+  applyTheme(localStorage.getItem(LS_THEME) || '');
+
+  fetch('images/manifest.json')
+    .then(r => r.ok ? r.json() : [])
+    .then(list => { wordImages = new Set(list); })
+    .catch(() => {});
 
   fetch('vocab.json')
     .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .then(data => {
       vocab = data;
       merge();
-      setMode('overview');
+      restoreView();
     })
     .catch(() => {
       merge();
       showStatus('Could not load vocab.json automatically.');
-      if (combined.length) setMode('overview');
+      if (combined.length) restoreView();
     });
 
   if ('serviceWorker' in navigator) {
@@ -637,6 +1044,26 @@
     try { localStorage.setItem(LS_RESULTS, JSON.stringify(gameResults)); } catch { console.warn('localStorage full — game results not saved'); }
   }
 
+  function saveView() {
+    const detailOpen = document.getElementById('detail-overlay').classList.contains('open');
+    try {
+      localStorage.setItem(LS_VIEW, JSON.stringify({
+        mode,
+        detail: detailOpen ? currentDetailWord : null,
+      }));
+    } catch {}
+  }
+
+  function restoreView() {
+    try {
+      const v = JSON.parse(localStorage.getItem(LS_VIEW) || 'null');
+      setMode(v?.mode === 'game' ? 'game' : 'overview');
+      if (v?.detail && combined.find(x => x.word === v.detail)) openDetail(v.detail);
+    } catch {
+      setMode('overview');
+    }
+  }
+
   function toggleHideWord(word) {
     if (hidden.has(word)) hidden.delete(word); else hidden.add(word);
     saveHidden();
@@ -650,12 +1077,13 @@
     hidden.add(word);
     saveHidden();
     const btn = document.getElementById('hide-game-btn');
-    if (btn) btn.textContent = 'Hidden ✓';
+    if (btn) { btn.textContent = '✓ Learned'; btn.classList.add('active'); }
   }
 
   function merge() {
-    // manual words override/extend vocab entries of same word
-    const map = new Map(vocab.map(v => [v.word.toLowerCase(), v]));
+    // Handle both object-keyed (new) and array (legacy) vocab format
+    const entries = Array.isArray(vocab) ? vocab : Object.values(vocab);
+    const map = new Map(entries.map(v => [v.word.toLowerCase(), v]));
     for (const m of manual) map.set(m.word.toLowerCase(), { ...map.get(m.word.toLowerCase()), ...m, _manual: true });
     combined = [...map.values()].sort((a, b) => (b.create_time || 0) - (a.create_time || 0));
   }
@@ -685,11 +1113,14 @@
 
   function setMode(m) {
     mode = m;
+    saveView();
     document.querySelectorAll('.mode-btn').forEach((btn, i) => {
       btn.classList.toggle('active', ['overview', 'game'][i] === m);
     });
-    document.getElementById('overview').style.display = m === 'overview' ? 'flex' : 'none';
-    document.getElementById('game').style.display      = m === 'game'     ? 'flex' : 'none';
+    document.getElementById('overview').style.display       = m === 'overview' ? 'flex' : 'none';
+    document.getElementById('game').style.display           = m === 'game'     ? 'flex' : 'none';
+    document.getElementById('overview-tools').style.display = m === 'overview' ? 'flex' : 'none';
+    document.getElementById('game-tools').style.display     = m === 'game'     ? 'flex' : 'none';
     if (m === 'overview') {
       renderGrid();
       if (currentAnswer && !roundAnswered) peekedOverview = true;
@@ -700,15 +1131,46 @@
     }
   }
 
+  // ── Settings ───────────────────────────────────────────────────────────────
+
+  function openSettings() {
+    updateThemeBtns();
+    document.getElementById('settings-overlay').classList.add('open');
+  }
+
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    localStorage.setItem(LS_THEME, t);
+    updateThemeBtns();
+  }
+
+  function updateThemeBtns() {
+    const current = localStorage.getItem(LS_THEME) || '';
+    document.querySelectorAll('.theme-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.theme === current);
+    });
+  }
+
+  function resetStats() {
+    if (!confirm('Reset all game stats?')) return;
+    gameResults = {};
+    score = 0;
+    attempts = 0;
+    document.getElementById('score').textContent = '0';
+    document.getElementById('attempts').textContent = '0';
+    saveResults();
+    renderGrid();
+    closeModal('settings-overlay');
+  }
+
   // ── Overview ───────────────────────────────────────────────────────────────
 
   function renderGrid() {
-    const q          = document.getElementById('search').value.toLowerCase();
-    const sortBy     = document.getElementById('sort-by').value;
-    const showHidden = document.getElementById('show-hidden').checked;
+    const q      = document.getElementById('search').value.toLowerCase();
+    const sortBy = document.getElementById('sort-by').value;
 
     let filtered = combined.filter(v => {
-      if (!showHidden && hidden.has(v.word)) return false;
+      if (hidden.has(v.word)) return false;
       return !q || v.word.toLowerCase().includes(q) || (v.title || '').toLowerCase().includes(q);
     });
 
@@ -728,26 +1190,63 @@
       });
     }
 
-    const hiddenCount = [...combined].filter(v => hidden.has(v.word)).length;
-    document.getElementById('count-label').textContent =
-      `${filtered.length} word${filtered.length !== 1 ? 's' : ''}` +
-      (manual.length ? ` · ${manual.length} manual` : '') +
-      (hiddenCount && !showHidden ? ` · ${hiddenCount} hidden` : '');
+    const withDef    = filtered.filter(v =>  v.definition);
+    const withoutDef = filtered.filter(v => !v.definition);
+    detailList = withDef.map(v => v.word);
 
-    document.getElementById('grid').innerHTML = filtered.map(v => {
-      const isHidden = hidden.has(v.word);
+    document.getElementById('count-label').textContent =
+      `${withDef.length} word${withDef.length !== 1 ? 's' : ''}` +
+      (manual.length ? ` · ${manual.length} manual` : '');
+
+    document.getElementById('grid').innerHTML = withDef.map(v => {
+      const hasImg = wordImages.has(v.word) || !!v.default_image;
+      const imgStyle = hasImg ? ` style="--card-img:url('images/${imgFilename(v.word)}.png')"` : '';
       return `
-        <div class="word-card${v._manual ? ' manual' : ''}${isHidden ? ' hidden-word' : ''}" onclick="openDetail('${escAttr(v.word)}')">
-          ${v._manual ? '<span class="manual-badge">manual</span>' : ''}
-          ${isHidden ? '<span class="hidden-badge">hidden</span>' : ''}
-          <div class="word">${esc(v.word)}</div>
-          ${v.part_of_speech ? `<div class="pos">${esc(v.part_of_speech)}</div>` : ''}
-          <div class="book">${esc(v.title || '—')}</div>
-          ${v.occurrences?.length ? `<div class="pos" style="color:var(--accent2)">${v.occurrences.length} occurrences</div>` : ''}
-          ${(() => { const r = gameResults[v.word]; return r ? `<div class="pos" style="color:${r.wrong > r.correct ? 'var(--wrong)' : 'var(--correct)'}">${r.correct}✓ ${r.wrong}✗</div>` : ''; })()}
-        </div>
-      `;
+      <div class="word-card${v._manual ? ' manual' : ''}${hasImg ? ' has-img' : ''}"${imgStyle} onclick="openDetail('${escAttr(v.word)}')">
+        ${v._manual ? '<span class="manual-badge">manual</span>' : ''}
+        <div class="word">${esc(v.word)}</div>
+        <div class="book">${esc(v.title || '—')}</div>
+        ${(() => { const r = gameResults[v.word]; return r ? `<div class="pos" style="color:${r.wrong > r.correct ? 'var(--wrong)' : 'var(--correct)'}">${r.correct}✓ ${r.wrong}✗</div>` : ''; })()}
+        ${v.occurrences?.length > 1 ? `<span class="occ-dot" title="${v.occurrences.length} occurrences">${v.occurrences.length}</span>` : ''}
+      </div>`;
     }).join('');
+
+    document.getElementById('not-found-container').innerHTML = withoutDef.length ? `
+      <details id="not-found-section">
+        <summary class="learned-summary">${withoutDef.length} word${withoutDef.length !== 1 ? 's' : ''} without dictionary result</summary>
+        <div class="grid">
+          ${withoutDef.map(v => `
+            <div class="word-card${v._manual ? ' manual' : ''}" onclick="openDetail('${escAttr(v.word)}')">
+              ${v._manual ? '<span class="manual-badge">manual</span>' : ''}
+              <div class="word">${esc(v.word)}</div>
+              <div class="book">${esc(v.title || '—')}</div>
+              ${v.occurrences?.length ? `<div class="pos" style="color:var(--accent2)">${v.occurrences.length} occurrences</div>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      </details>
+    ` : '';
+
+    const learnedWords = combined.filter(v =>
+      hidden.has(v.word) &&
+      (!q || v.word.toLowerCase().includes(q) || (v.title || '').toLowerCase().includes(q))
+    );
+    document.getElementById('learned-container').innerHTML = learnedWords.length ? `
+      <details id="learned-section" open>
+        <summary class="learned-summary">${learnedWords.length} learned word${learnedWords.length !== 1 ? 's' : ''}</summary>
+        <div class="grid">
+          ${learnedWords.map(v => `
+            <div class="word-card${v._manual ? ' manual' : ''}" onclick="openDetail('${escAttr(v.word)}')">
+              ${v._manual ? '<span class="manual-badge">manual</span>' : ''}
+              <span class="learned-badge">learned</span>
+              <div class="word">${esc(v.word)}</div>
+              ${v.part_of_speech ? `<div class="pos">${esc(v.part_of_speech)}</div>` : ''}
+              <div class="book">${esc(v.title || '—')}</div>
+            </div>
+          `).join('')}
+        </div>
+      </details>
+    ` : '';
   }
 
   // ── Detail modal ───────────────────────────────────────────────────────────
@@ -755,6 +1254,10 @@
   function openDetail(word) {
     const v = combined.find(x => x.word === word);
     if (!v) return;
+
+    currentDetailWord = word;
+    detailIdx = detailList.indexOf(word);
+    const showNav = detailList.length > 1;
 
     const ctx = buildContext(v, true);
 
@@ -781,10 +1284,40 @@
          </div>`
       : '';
 
+    const hasHero = wordImages.has(v.word) || !!v.default_image;
+    const hero = document.getElementById('detail-hero');
+    const headerBar = document.getElementById('detail-header-bar');
+    if (hasHero) {
+      hero.querySelector('img')?.remove();
+      const img = document.createElement('img');
+      img.src = `images/${imgFilename(v.word)}.png`;
+      img.onerror = () => {
+        hero.classList.remove('active');
+        headerBar.style.display = '';
+      };
+      hero.insertBefore(img, hero.firstChild);
+      hero.querySelector('.hero-overlay h2').textContent = v.word;
+      hero.classList.add('active');
+      headerBar.style.display = 'none';
+    } else {
+      hero.classList.remove('active');
+      headerBar.style.display = '';
+    }
+
+    document.getElementById('detail-prev').style.display = showNav ? '' : 'none';
+    document.getElementById('detail-next').style.display = showNav ? '' : 'none';
+
+    const learnedBtn = document.getElementById('detail-learned-btn');
+    if (learnedBtn) {
+      const isLearned = hidden.has(word);
+      learnedBtn.classList.toggle('active', isLearned);
+      document.getElementById('detail-learned-label').textContent = isLearned ? 'Learned' : 'Mark as learned';
+    }
+
+    document.getElementById('detail-title').textContent = v.word;
     document.getElementById('detail-content').innerHTML = `
-      <h2>${esc(v.word)}</h2>
-      <div class="meta">
-        ${esc(v.title || 'No source')} · Added ${formatDate(v.create_time)}
+      <div class="meta" style="margin-top:${hasHero ? '0.6rem' : '0'}">
+        Added ${formatDate(v.create_time)}
         ${v._manual ? ' · <span style="color:var(--manual)">manually added</span>' : ''}
       </div>
 
@@ -803,6 +1336,7 @@
       ${ctx ? `
         <div class="detail-section">
           <h3>Context from lookup</h3>
+          ${v.title ? `<div class="occ-book" style="margin-bottom:0.4rem">${esc(v.title)}</div>` : ''}
           <div class="context-box">${ctx}</div>
         </div>` : ''}
 
@@ -827,26 +1361,74 @@
       <div class="detail-section">
         <h3>Stats</h3>
         <div class="stats">
+          ${(() => { const r = gameResults[v.word]; return r ? `
+            <div class="stat"><div class="val" style="color:var(--correct)">${r.correct}</div><div class="lbl">Correct</div></div>
+            <div class="stat"><div class="val" style="color:var(--wrong)">${r.wrong}</div><div class="lbl">Wrong</div></div>
+          ` : ''; })()}
           <div class="stat"><div class="val">${v.review_count || 0}</div><div class="lbl">Reviews</div></div>
           <div class="stat"><div class="val">${v.streak_count || 0}</div><div class="lbl">Streak</div></div>
           <div class="stat"><div class="val">${v.occurrences?.length || 0}</div><div class="lbl">In library</div></div>
         </div>
       </div>
 
+      ${v._manual ? `
       <div style="margin-top:1rem;display:flex;gap:0.5rem;flex-wrap:wrap">
-        <button class="btn-secondary" onclick="toggleHideWord('${escAttr(v.word)}')">
-          ${hidden.has(v.word) ? 'Unhide' : 'Hide word'}
-        </button>
-        ${v._manual ? `
-          <button class="btn-secondary" onclick="editWord('${escAttr(v.word)}')">Edit</button>
-          <button class="btn-secondary" style="color:var(--wrong);border-color:var(--wrong)" onclick="deleteWord('${escAttr(v.word)}')">Delete</button>
-        ` : ''}
-      </div>
+        <button class="btn-secondary" onclick="editWord('${escAttr(v.word)}')">Edit</button>
+        <button class="btn-secondary" style="color:var(--wrong);border-color:var(--wrong)" onclick="deleteWord('${escAttr(v.word)}')">Delete</button>
+      </div>` : ''}
 
       ${occHtml}
     `;
 
     document.getElementById('detail-overlay').classList.add('open');
+    saveView();
+    fetchWikiLink(v.word);
+  }
+
+  function fetchWikiLink(word) {
+    const btn = document.getElementById('detail-wiki-btn');
+    if (btn) btn.style.display = 'none';
+    if (wikiCache[word] !== undefined) {
+      if (wikiCache[word]) renderWikiLink(wikiCache[word].url, wikiCache[word].label);
+      return;
+    }
+    const title = encodeURIComponent(word.charAt(0).toUpperCase() + word.slice(1));
+    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        let url = null, label = 'Wikipedia';
+        if (data?.type === 'standard' || data?.type === 'disambiguation') {
+          if (data.extract?.toLowerCase().includes('wiktionary')) {
+            url = `https://en.wiktionary.org/wiki/${encodeURIComponent(word.toLowerCase())}`;
+            label = 'Wiktionary';
+          } else {
+            url = data.content_urls?.desktop?.page;
+          }
+        }
+        wikiCache[word] = url ? { url, label } : null;
+        if (url && currentDetailWord === word) renderWikiLink(url, label);
+      })
+      .catch(() => { wikiCache[word] = null; });
+  }
+
+  function renderWikiLink(url, label) {
+    const btn = document.getElementById('detail-wiki-btn');
+    if (!btn) return;
+    btn.href = url;
+    btn.querySelector('span').textContent = label;
+    if (document.getElementById('detail-hero').classList.contains('active')) {
+      btn.style.display = '';
+    }
+  }
+
+  function navigateDetail(dir) {
+    if (detailList.length < 2) return;
+    detailIdx = (detailIdx + dir + detailList.length) % detailList.length;
+    openDetail(detailList[detailIdx]);
+  }
+
+  function toggleLearnedFromDetail() {
+    toggleHideWord(currentDetailWord);
   }
 
   // ── Add / edit word ────────────────────────────────────────────────────────
@@ -924,6 +1506,34 @@
     );
   }
 
+  // Pick a word weighted by fail rate — frequently failed words appear more often.
+  // New (unplayed) words get medium weight; consistently correct words get low weight.
+  function weightedPick(pool) {
+    const weights = pool.map(v => {
+      const r = gameResults[v.word];
+      if (!r) return 0.5;
+      const total = r.correct + r.wrong;
+      return total ? Math.max(0.05, r.wrong / total) : 0.5;
+    });
+    let rand = Math.random() * weights.reduce((a, b) => a + b, 0);
+    for (let i = 0; i < pool.length; i++) {
+      rand -= weights[i];
+      if (rand <= 0) return pool[i];
+    }
+    return pool[pool.length - 1];
+  }
+
+  // Pick 3 distractors: prefer same part-of-speech as target (harder to eliminate).
+  function pickDistractors(target) {
+    const samePOS = shuffle(combined.filter(v =>
+      v.word !== target.word && v.part_of_speech === target.part_of_speech
+    ));
+    const other = shuffle(combined.filter(v =>
+      v.word !== target.word && v.part_of_speech !== target.part_of_speech
+    ));
+    return [...samePOS, ...other].slice(0, 3).map(v => v.word);
+  }
+
   function nextRound() {
     const pool = gamePool();
     if (pool.length < 4) {
@@ -936,10 +1546,18 @@
     peekedOverview = false;
     currentAnswer = '';
     document.getElementById('game-feedback').textContent = '';
-    document.getElementById('next-btn').textContent = 'Skip →';
+    document.getElementById('clue-solved-actions').innerHTML = '';
+    const nb = document.getElementById('next-btn');
+    nb.textContent = 'Skip →';
+    nb.classList.remove('answered');
+    document.getElementById('pool-label').textContent = `${pool.length} words`;
 
-    const target = pool[Math.floor(Math.random() * pool.length)];
+    // Avoid immediate repeats; fall back to full pool if necessary
+    const fresh = pool.filter(v => !recentWords.includes(v.word));
+    const target = weightedPick(fresh.length >= 4 ? fresh : pool);
     currentAnswer = target.word;
+    recentWords.push(target.word);
+    if (recentWords.length > RECENT_CAP) recentWords.shift();
 
     if (target.definition) {
       const pos = target.part_of_speech ? `<em>${target.part_of_speech}</em> ` : '';
@@ -953,11 +1571,11 @@
       document.getElementById('clue-source').textContent = target.title ? `— ${target.title}` : '';
     }
 
-    const distractors = shuffle(combined.filter(v => v.word !== target.word)).slice(0, 3).map(v => v.word);
-    const choices = shuffle([target.word, ...distractors]);
-
-    document.getElementById('choices').innerHTML = choices.map(w => `
-      <button class="choice-btn" onclick="guess('${escAttr(w)}')">${esc(w)}</button>
+    const choices = shuffle([target.word, ...pickDistractors(target)]);
+    document.getElementById('choices').innerHTML = choices.map((w, i) => `
+      <button class="choice-btn" onclick="guess('${escAttr(w)}')">
+        ${esc(w)}
+      </button>
     `).join('');
   }
 
@@ -966,7 +1584,9 @@
     roundAnswered = true;
     attempts++;
     document.getElementById('attempts').textContent = attempts;
-    document.getElementById('next-btn').textContent = 'Next →';
+    const nextBtn = document.getElementById('next-btn');
+    nextBtn.textContent = 'Next →';
+    nextBtn.classList.add('answered');
     document.activeElement?.blur();
 
     const correct = word === currentAnswer;
@@ -986,9 +1606,11 @@
       else if (btn.textContent === word && !correct) btn.classList.add('wrong');
     });
 
-    document.getElementById('game-feedback').innerHTML = correct
-      ? `${randomPraise()} <button class="hide-learned-btn" id="hide-game-btn" onclick="hideFromGame('${escAttr(currentAnswer)}')">Mark as learned</button> <button class="hide-learned-btn" onclick="openDetail('${escAttr(currentAnswer)}')">View card</button>`
-      : `The answer was &ldquo;${esc(currentAnswer)}&rdquo; <button class="hide-learned-btn" onclick="openDetail('${escAttr(currentAnswer)}')">View card</button>`;
+    const isLearned = hidden.has(currentAnswer);
+    document.getElementById('clue-solved-actions').innerHTML = `
+      <button class="btn-learned${isLearned ? ' active' : ''}" id="hide-game-btn" onclick="hideFromGame('${escAttr(currentAnswer)}')">${isLearned ? '✓ Learned' : 'Mark as learned'}</button>
+      <button onclick="openDetail('${escAttr(currentAnswer)}')">View card</button>
+    `;
 
     const entry = combined.find(v => v.word === currentAnswer);
     if (entry) {
@@ -1008,14 +1630,33 @@
   function closeModal(id, e) {
     if (!e || e?.target?.id === id) {
       document.getElementById(id).classList.remove('open');
+      if (id === 'detail-overlay') saveView();
     }
   }
 
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
-      ['detail-overlay', 'add-overlay'].forEach(id => {
+      ['detail-overlay', 'add-overlay', 'settings-overlay'].forEach(id => {
         document.getElementById(id).classList.remove('open');
       });
+    }
+    if (mode === 'game') {
+      if (['1','2','3','4'].includes(e.key) && !roundAnswered) {
+        const btns = document.querySelectorAll('.choice-btn:not(:disabled)');
+        btns[+e.key - 1]?.click();
+      }
+      if ((e.key === 'Enter' || e.key === 'ArrowRight' || e.key === ' ') && roundAnswered) {
+        e.preventDefault();
+        nextRound();
+      }
+    }
+    if (mode === 'game' || mode === 'overview') {
+      const detailOpen = document.getElementById('detail-overlay').classList.contains('open');
+      if (e.key === 'ArrowRight' && mode === 'overview' && !detailOpen) return;
+      if (detailOpen) {
+        if (e.key === 'ArrowLeft')  navigateDetail(-1);
+        if (e.key === 'ArrowRight') navigateDetail(1);
+      }
     }
   });
 
@@ -1050,6 +1691,10 @@
   }
 
   function escAttr(s) { return String(s || '').replace(/'/g, '&#39;'); }
+
+  function imgFilename(word) {
+    return word.replace(/[^\w\-_. ]/g, '').trim().replace(/ /g, '_').slice(0, 80);
+  }
   function escRe(s)   { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
   function shuffle(arr) {
@@ -1068,6 +1713,20 @@
 
   function randomPraise() {
     return ['Correct!', 'Nice!', 'Well done!', 'Spot on!', "That's right!"][Math.floor(Math.random() * 5)];
+  }
+
+  function loadParseLog() {
+    const out = document.getElementById('parse-log-output');
+    out.classList.add('visible');
+    out.textContent = 'Loading\u2026';
+    fetch('parse_log.json?t=' + Date.now())
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) { out.textContent = 'No log found \u2014 run extract.py first.'; return; }
+        out.innerHTML = `<div class="log-run">Run at ${esc(data.run_at)}</div>` +
+          data.entries.map(e => `<div><span class="log-t">${esc(e.time)}</span>${esc(e.msg)}</div>`).join('');
+      })
+      .catch(() => { out.textContent = 'Could not load log.'; });
   }
 </script>
 </body>

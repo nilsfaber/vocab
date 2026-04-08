@@ -9,7 +9,24 @@ import zipfile
 import urllib.request
 from html.parser import HTMLParser
 
+
+
 _SENTENCE_BREAK = re.compile(r'(?<=[.!?])\s+')
+
+_LOG   = []
+_LOG_PATH = "docs/parse_log.json"
+
+def _log(msg):
+    """Print and record for parse_log.json."""
+    print(msg)
+    _LOG.append({"time": time.strftime("%H:%M:%S"), "msg": str(msg)})
+
+def _write_log():
+    try:
+        with open(_LOG_PATH, "w", encoding="utf-8") as f:
+            json.dump({"run_at": time.strftime("%Y-%m-%dT%H:%M:%S"), "entries": _LOG}, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"\u26a0 Could not write parse log: {e}")
 
 
 def _progress(current, total, label="", width=40):
@@ -99,7 +116,7 @@ def pull_books(device):
         pulled[filename] = local_path
         _progress(i, len(paths), filename[:40])
 
-    print(f"✅ {len(pulled)} epub(s) ready ({new_count} new)")
+    _log(f"✅ {len(pulled)} epub(s) ready ({new_count} new)")
     return pulled
 
 
@@ -168,32 +185,39 @@ def find_local_epubs():
     return found
 
 
+def _load_existing_vocab(output):
+    """Load existing vocab.json. Handles both object (new) and array (legacy) format."""
+    if not os.path.exists(output):
+        return {}
+    try:
+        with open(output, encoding="utf-8") as f:
+            existing = json.load(f)
+        if isinstance(existing, dict):
+            return existing
+        elif isinstance(existing, list):
+            _log("⚠ Migrating vocab.json from array to object format…")
+            return {e["word"].lower(): e for e in existing if e.get("word")}
+    except Exception:
+        pass
+    return {}
+
+
+def _save_vocab(vocab, output):
+    os.makedirs(os.path.dirname(output), exist_ok=True)
+    with open(output, "w", encoding="utf-8") as f:
+        json.dump(vocab, f, ensure_ascii=False, indent=2)
+
+
 def export_json(output=None):
+    """Merge KOReader SQLite data into vocab.json. Only adds new words; preserves existing fields."""
     if output is None:
         output = f"{APP_DIR}/vocab.json"
 
-    # carry over previously fetched definitions so they survive a re-export
-    existing_defs = {}
-    if os.path.exists(output):
-        try:
-            with open(output, encoding="utf-8") as f:
-                for e in json.load(f):
-                    if e.get("enriched"):
-                        existing_defs[e["word"]] = {
-                            "definition":     e.get("definition", ""),
-                            "part_of_speech": e.get("part_of_speech", ""),
-                            "example":        e.get("example", ""),
-                            "synonyms":       e.get("synonyms", []),
-                            "antonyms":       e.get("antonyms", []),
-                            "enriched":       True,
-                        }
-        except Exception:
-            pass
+    vocab = _load_existing_vocab(output)
 
     conn = sqlite3.connect(LOCAL_DB)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-
     cursor.execute("""
         SELECT v.word, v.highlight, v.prev_context, v.next_context,
                v.create_time, v.review_count, v.streak_count, t.name AS title
@@ -204,53 +228,95 @@ def export_json(output=None):
     rows = [dict(row) for row in cursor.fetchall()]
     conn.close()
 
-    for row in rows:
-        if row["word"] in existing_defs:
-            row.update(existing_defs[row["word"]])
-
+    # Parse epubs for occurrences
     epubs = find_local_epubs()
+    paragraph_cache = {}
     if epubs:
-        print(f"📖 Parsing {len(epubs)} epub(s)...")
-        paragraph_cache = {}
+        _log(f"📖 Parsing {len(epubs)} epub(s)...")
         for i, (epub_path, display) in enumerate(epubs.items(), 1):
             _progress(i, len(epubs), display[:40])
             paragraph_cache[epub_path] = (display, extract_paragraphs(epub_path))
-
-        for entry in rows:
-            pattern = re.compile(r'\b' + re.escape(entry["word"]) + r'\w*', re.IGNORECASE)
-            entry["occurrences"] = [
-                {"book": display, "paragraph": trim_to_context(para, entry["word"])}
-                for display, paragraphs in paragraph_cache.values()
-                for para in paragraphs
-                if pattern.search(para)
-            ]
     else:
-        print("⚠ No epub files found in data/books/")
-        for entry in rows:
-            entry["occurrences"] = []
+        _log("⚠ No epub files found in data/books/")
 
-    with open(output, "w", encoding="utf-8") as f:
-        json.dump(rows, f, ensure_ascii=False, indent=2)
+    def compute_occurrences(word):
+        if not paragraph_cache:
+            return []
+        pattern = re.compile(r'\b' + re.escape(word) + r'\w*', re.IGNORECASE)
+        return [
+            {"book": display, "paragraph": trim_to_context(para, word)}
+            for display, paragraphs in paragraph_cache.values()
+            for para in paragraphs
+            if pattern.search(para)
+        ]
 
-    total_occs = sum(len(e["occurrences"]) for e in rows)
-    print(f"✅ Exported {len(rows)} words, {total_occs} occurrences → {output}")
+    new_count = 0
+    for row in rows:
+        key = row["word"].lower()
+        if key in vocab:
+            # Update KOReader-tracked fields only; preserve enriched/imagegen fields
+            vocab[key]["review_count"] = row["review_count"]
+            vocab[key]["streak_count"] = row["streak_count"]
+            vocab[key]["occurrences"]  = compute_occurrences(row["word"])
+        else:
+            vocab[key] = {
+                "word":             row["word"],
+                "highlight":        row["highlight"],
+                "prev_context":     row["prev_context"],
+                "next_context":     row["next_context"],
+                "create_time":      row["create_time"],
+                "review_count":     row["review_count"],
+                "streak_count":     row["streak_count"],
+                "title":            row["title"],
+                "source":           "koreader",
+                "occurrences":      compute_occurrences(row["word"]),
+                "images":           [],
+                "default_image":    None,
+                "flagged_for_regen": False,
+                "translation":      {},
+            }
+            new_count += 1
+
+    # Manual words
+    try:
+        with open("data/manual_words.json", encoding="utf-8") as f:
+            manual = json.load(f)
+        for word_str in manual:
+            key = word_str.lower()
+            if key not in vocab:
+                vocab[key] = {
+                    "word":             word_str,
+                    "source":           "manual",
+                    "occurrences":      [],
+                    "images":           [],
+                    "default_image":    None,
+                    "flagged_for_regen": False,
+                    "translation":      {},
+                }
+                new_count += 1
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+
+    _save_vocab(vocab, output)
+    total_occs = sum(len(e.get("occurrences", [])) for e in vocab.values())
+    _log(f"✅ {len(vocab)} words ({new_count} new), {total_occs} occurrences → {output}")
+    return vocab
 
 
-def fetch_definitions(output=None):
+def fetch_definitions(vocab, output=None):
+    """Fetch dictionary definitions for words that don't have one yet."""
     if output is None:
         output = f"{APP_DIR}/vocab.json"
-    with open(output, encoding="utf-8") as f:
-        entries = json.load(f)
 
-    pending = [e for e in entries if not e.get("enriched")]
+    pending = [(key, entry) for key, entry in vocab.items() if not entry.get("enriched")]
     if not pending:
-        print("✅ Definitions already up to date")
+        _log("✅ Definitions already up to date")
         return
 
-    print(f"📚 Fetching definitions for {len(pending)} word(s)...")
+    _log(f"📚 Fetching definitions for {len(pending)} word(s)...")
     updated = 0
-    for i, entry in enumerate(pending, 1):
-        word = entry["word"]
+    for i, (key, entry) in enumerate(pending, 1):
+        word = entry.get("word", key)
         _progress(i, len(pending), word)
         url = f"https://api.dictionaryapi.dev/api/v2/entries/en/{urllib.request.quote(word)}"
         try:
@@ -287,10 +353,47 @@ def fetch_definitions(output=None):
 
         time.sleep(0.3)
 
-    with open(output, "w", encoding="utf-8") as f:
-        json.dump(entries, f, ensure_ascii=False, indent=2)
+    _save_vocab(vocab, output)
+    _log(f"✅ Definitions fetched: {updated} found, {len(pending) - updated} not in dictionary")
 
-    print(f"✅ Definitions fetched: {updated} found, {len(pending) - updated} not in dictionary")
+
+def fetch_translations(vocab, lang="nl", output=None):
+    """Fetch translations (via MyMemory) for enriched words without one yet."""
+    if output is None:
+        output = f"{APP_DIR}/vocab.json"
+
+    pending = [
+        (key, entry) for key, entry in vocab.items()
+        if entry.get("enriched") and not entry.get("translation", {}).get(lang)
+    ]
+    if not pending:
+        _log(f"✅ Translations ({lang}) already up to date")
+        return
+
+    _log(f"🌐 Fetching {lang} translations for {len(pending)} word(s)...")
+    updated = 0
+    for i, (key, entry) in enumerate(pending, 1):
+        word = entry.get("word", key)
+        _progress(i, len(pending), word)
+        url = (f"https://api.mymemory.translated.net/get?"
+               f"q={urllib.request.quote(word)}&langpair=en|{lang}")
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "vocab-builder/1.0"})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = json.loads(resp.read())
+            translated  = data.get("responseData", {}).get("translatedText", "").strip()
+            match_score = float(data.get("responseData", {}).get("match", 0) or 0)
+            if translated and match_score >= 0.5:
+                if "translation" not in entry:
+                    entry["translation"] = {}
+                entry["translation"][lang] = translated
+                updated += 1
+        except Exception as e:
+            sys.stdout.write(f"\n  ⚠ {word}: {e}\n")
+        time.sleep(0.3)
+
+    _save_vocab(vocab, output)
+    _log(f"✅ Translations ({lang}): {updated}/{len(pending)} fetched")
 
 
 def inspect_database():
@@ -313,14 +416,18 @@ def inspect_database():
 
 
 def main():
-    devices = get_devices()
-    device = pick_device(devices)
+    # devices = get_devices()
+    # device = pick_device(devices)
 
-    check_koreader(device)
-    pull_database(device)
-    pull_books(device)
-    export_json()
-    fetch_definitions()
+    # check_koreader(device)
+    # pull_database(device)
+    # pull_books(device)
+    # vocab = export_json() 
+    # read a json
+    vocab = _load_existing_vocab(f"{APP_DIR}/vocab.json")
+    fetch_definitions(vocab)
+    fetch_translations(vocab)
+    _write_log()
 
 
 if __name__ == "__main__":
