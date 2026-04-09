@@ -815,46 +815,7 @@ details.occurrence-item summary::-webkit-details-marker { display: none; }
 .info-row input:not([readonly]) { cursor: text; }
 .info-row input::placeholder { color: var(--text-dim); }
 
-/* Pencil edit/save toggle button */
-.pencil-btn {
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  background: transparent;
-  border: none;
-  color: rgba(255,255,255,0.2);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  transition: color 0.15s;
-}
-.pencil-btn:hover { color: rgba(255,255,255,0.65); }
-.pencil-btn.editing { color: var(--accent); }
 
-/* ── Approved badge ── */
-.approve-btn {
-  position: absolute;
-  top: 4px; right: 4px;
-  width: 22px; height: 22px;
-  border-radius: 50%;
-  background: rgba(0,0,0,0.45);
-  border: 1px solid rgba(255,255,255,0.2);
-  color: rgba(255,255,255,0.4);
-  cursor: pointer;
-  font-size: 11px;
-  display: flex; align-items: center; justify-content: center;
-  transition: background 0.1s, color 0.1s, border-color 0.1s;
-  z-index: 2;
-}
-.approve-btn.approved {
-  background: rgb(255, 255, 255);
-  border-color: rgba(100,200,120,0.55);
-  color: #7ecf7e;
-}
-.approve-btn:hover { background: rgba(255,255,255,0.18); }
 
 /* ── Modals (confirm delete + unsaved changes) ── */
 #confirm-modal,
@@ -1436,8 +1397,7 @@ body.ui-hidden #view-pill {
 }
 /* Hide title bar buttons but keep the word title visible */
 body.ui-hidden #delete-word-btn,
-body.ui-hidden #flag-btn,
-body.ui-hidden #def-save-btn {
+body.ui-hidden #flag-btn {
   visibility: hidden;
   pointer-events: none;
 }

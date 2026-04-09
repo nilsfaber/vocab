@@ -124,9 +124,8 @@ Both imagegen and the PWA share the same bottom bar design: a **glass context ro
 - **Game modes**: Random (default, picks a viable mode each round), Context (definition/sentence → pick word), Definitions (word → pick definition), Image (image → pick word), Dutch (translation → pick word). Pool filtered per mode; stats shared across modes per word.
 - **Word of the Day** (PWA only): on app open, if >1 hour since last shown, displays a modal with the day's word, part of speech, and definition. Word is deterministic per calendar date.
 - **Selecting an alternative image** automatically applies it as the default AND writes it to `docs/images/<word>.png` (via pngquant if available). default_image is persisted in `docs/vocab.json` via the server API.
-- **Word info panel** — single glass card split by a vertical divider. Left side: word title, delete button, pencil/save toggle, definition textarea. Right side: inline rows for Dutch translation, Synonyms, Antonyms. The pencil button in the title bar toggles edit mode for all fields at once (icon switches pencil↔check); all fields save in one API call on confirm.
+- **Word info panel** — single glass card split by a vertical divider. Left side: word title, delete button, pencil button, definition textarea. Right side: inline rows for Dutch translation, Synonyms, Antonyms. In imagegen, all fields are always editable (`wordInfoAlwaysEdit = true`); the pencil turns blue when there are unsaved changes, clicking it saves. In the PWA, the pencil toggles edit mode (icon switches pencil↔check). All fields save in one API call. Navigating away while dirty shows the unsaved-changes modal with Save focused (Enter confirms).
 - **Flag button** (⚑) in word title bar (imagegen only) — toggles regen flag in vocab.json.
-- **Approved toggle** (✓) on each alt thumbnail — marks the image as approved in vocab.json.
 - **Run panel** — select script, optionally edit the prompt, click Run. Output streams live. On completion vocab reloads and the new image appears without a full page reload.
 - **Page state** persisted in `localStorage` (`imagen_open_word`).
 - **Icons**: SVG sprite at `docs/icons.svg`; imagegen references as `/docs/icons.svg#icon-*`, PWA as `icons.svg#icon-*`.
@@ -145,7 +144,7 @@ Both imagegen and the PWA share the same bottom bar design: a **glass context ro
   "enriched": true,
   "occurrences": [...],
   "images": [
-    { "filename": "...", "script": "...", "prompt_base": "...", "scene": "...", "date": "...", "approved": false }
+    { "filename": "...", "script": "...", "prompt_base": "...", "scene": "...", "date": "..." }
   ],
   "default_image": "filename.png",
   "flagged_for_regen": false,
@@ -192,9 +191,6 @@ Update `README.md` whenever functionality changes — new features, changed comm
 ## Backlog
 
 ### low priority
-#### 10 — File import/export
-- PWA exports localStorage vocab as `vocab_export.json`.
-- Imagegen gets an import panel: upload `vocab_export.json`, merge new words and updated `stats` into `docs/vocab.json` (never overwrite imagegen fields for existing words).
 
 #### 2 — Local vocab.sqlite3 fallback
 - **2a** — Detect no device connected, show fallback UI.

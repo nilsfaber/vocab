@@ -36,6 +36,10 @@
       Score: <strong id="game-score">0</strong> / <strong id="game-attempts">0</strong>
     </div>
     <div id="ctx-gallery" class="ctx-panel active">
+      <button class="ctx-btn icon-only" id="import-btn" title="Import vocab_export.json">
+        <svg class="icon"><use href="/docs/icons.svg#icon-upload"/></svg>
+      </button>
+      <input id="import-file" type="file" accept=".json" style="display:none">
       <svg class="icon"><use href="/docs/icons.svg#icon-columns"/></svg>
       <input id="cols-slider" type="range" min="1" max="8" step="1" value="4" title="Gallery columns">
       <span id="cols-label">4</span>
@@ -115,24 +119,21 @@
           <button id="delete-word-btn" class="icon-action-btn delete-btn" title="Delete word">
             <svg class="icon"><use href="/docs/icons.svg#icon-trash"/></svg>
           </button>
-          <button id="def-save-btn" class="pencil-btn" title="Edit definition">
-            <svg class="icon"><use href="/docs/icons.svg#icon-pencil"/></svg>
-          </button>
         </div>
-        <textarea id="def-edit" spellcheck="false" placeholder="No definition…" rows="3" readonly></textarea>
+        <textarea id="def-edit" spellcheck="false" placeholder="No definition…" rows="3"></textarea>
       </div>
       <div id="word-info-right">
         <div class="info-row">
           <span class="info-row-label">Dutch</span>
-          <input id="trans-edit" type="text" spellcheck="false" placeholder="—" readonly>
+          <input id="trans-edit" type="text" spellcheck="false" placeholder="—">
         </div>
         <div class="info-row">
           <span class="info-row-label">Synonyms</span>
-          <input id="syns-edit" type="text" placeholder="—" spellcheck="false" readonly>
+          <input id="syns-edit" type="text" placeholder="—" spellcheck="false">
         </div>
         <div class="info-row">
           <span class="info-row-label">Antonyms</span>
-          <input id="ants-edit" type="text" placeholder="—" spellcheck="false" readonly>
+          <input id="ants-edit" type="text" placeholder="—" spellcheck="false">
         </div>
       </div>
     </div>
@@ -178,17 +179,6 @@
   </div>
 </div>
 
-<!-- Unsaved changes modal -->
-<div id="unsaved-modal">
-  <div id="unsaved-modal-box">
-    <div id="unsaved-modal-title">Unsaved changes</div>
-    <div id="unsaved-modal-actions">
-      <button id="unsaved-cancel-btn">Cancel</button>
-      <button id="unsaved-discard-btn">Discard</button>
-      <button id="unsaved-save-btn">Save</button>
-    </div>
-  </div>
-</div>
 
 <script src="/docs/vocab.js"></script>
 <script>
@@ -391,6 +381,47 @@ async function applyToDoc(word, filename, verbose = false) {
     }
   }
 }
+
+// ── Import vocab_export.json ──────────────────────────────────────────────────
+const importBtn  = document.getElementById('import-btn');
+const importFile = document.getElementById('import-file');
+
+importBtn.addEventListener('click', () => importFile.click());
+
+importFile.addEventListener('change', async () => {
+  const file = importFile.files[0];
+  if (!file) return;
+  importFile.value = '';
+
+  let imported;
+  try {
+    imported = JSON.parse(await file.text());
+  } catch {
+    alert('Could not parse file — make sure it is a valid vocab_export.json.');
+    return;
+  }
+
+  let added = 0, updated = 0, errors = 0;
+  for (const [key, data] of Object.entries(imported)) {
+    try {
+      if (!vocab[key]) {
+        // New word — add with all exported fields
+        await createWord({ ...data, word: data.word || key });
+        added++;
+      } else if (data.stats) {
+        // Existing word — only merge stats, never overwrite imagegen fields
+        await updateWordField(key, { stats: data.stats });
+        updated++;
+      }
+    } catch { errors++; }
+  }
+
+  renderWordList();
+  renderGallery();
+  const msg = [`Import complete.`, `${added} added`, `${updated} stats updated`];
+  if (errors) msg.push(`${errors} errors`);
+  alert(msg.join(' · '));
+});
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 loadVocab();

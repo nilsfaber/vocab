@@ -28,6 +28,7 @@ REPO_ROOT      = Path(__file__).parent.resolve()
 IMAGEN_DIR     = REPO_ROOT / "imagegen"
 GENERATORS_DIR = IMAGEN_DIR / "generators"
 VOCAB_PATH     = REPO_ROOT / "docs" / "vocab.json"
+PUBLIC_PATH    = REPO_ROOT / "docs" / "vocab_public.json"
 
 _jobs: dict[str, dict] = {}
 _job_queue: queue.Queue = queue.Queue()   # (job_id, script_path, words)
@@ -75,6 +76,14 @@ def _read_vocab() -> dict:
 
 def _write_vocab(vocab: dict) -> None:
     VOCAB_PATH.write_text(json.dumps(vocab, ensure_ascii=False, indent=2), encoding="utf-8")
+    # Keep public version in sync: occurrences stripped of paragraph text
+    if PUBLIC_PATH.exists():
+        public = {}
+        for key, entry in vocab.items():
+            e = {k: v for k, v in entry.items() if k != "occurrences"}
+            e["occurrences"] = [{"book": occ["book"]} for occ in entry.get("occurrences", [])]
+            public[key] = e
+        PUBLIC_PATH.write_text(json.dumps(public, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def list_scripts() -> list[str]:

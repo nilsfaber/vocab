@@ -128,24 +128,21 @@
           <button id="delete-word-btn" class="icon-action-btn delete-btn" title="Delete word">
             <svg class="icon"><use href="icons.svg#icon-trash"/></svg>
           </button>
-          <button id="def-save-btn" class="pencil-btn" title="Edit definition">
-            <svg class="icon"><use href="icons.svg#icon-pencil"/></svg>
-          </button>
         </div>
-        <textarea id="def-edit" spellcheck="false" placeholder="No definition…" rows="3" readonly></textarea>
+        <textarea id="def-edit" spellcheck="false" placeholder="No definition…" rows="3"></textarea>
       </div>
       <div id="word-info-right">
         <div class="info-row">
           <span class="info-row-label">Dutch</span>
-          <input id="trans-edit" type="text" spellcheck="false" placeholder="—" readonly>
+          <input id="trans-edit" type="text" spellcheck="false" placeholder="—">
         </div>
         <div class="info-row">
           <span class="info-row-label">Synonyms</span>
-          <input id="syns-edit" type="text" placeholder="—" spellcheck="false" readonly>
+          <input id="syns-edit" type="text" placeholder="—" spellcheck="false">
         </div>
         <div class="info-row">
           <span class="info-row-label">Antonyms</span>
-          <input id="ants-edit" type="text" placeholder="—" spellcheck="false" readonly>
+          <input id="ants-edit" type="text" placeholder="—" spellcheck="false">
         </div>
       </div>
     </div>
@@ -183,17 +180,6 @@
   </div>
 </div>
 
-<!-- Unsaved changes modal -->
-<div id="unsaved-modal">
-  <div id="unsaved-modal-box">
-    <div id="unsaved-modal-title">Unsaved changes</div>
-    <div id="unsaved-modal-actions">
-      <button id="unsaved-cancel-btn">Cancel</button>
-      <button id="unsaved-discard-btn">Discard</button>
-      <button id="unsaved-save-btn">Save</button>
-    </div>
-  </div>
-</div>
 
 <!-- Settings modal -->
 <div id="settings-modal">

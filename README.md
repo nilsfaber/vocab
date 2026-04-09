@@ -133,6 +133,7 @@ Both imagegen and the PWA share the same bottom bar: a **glass context row** tha
 - **Unsaved changes** — navigating away while editing shows a Save / Discard / Cancel modal.
 - **Occurrences** — grouped by book (collapsible), with occurrence count badge.
 - **Alternatives** — thumbnail grid of all generated images; click to set as default (runs pngquant and writes to `docs/images/`).
+- **Import** — upload button in gallery context row. Accepts a `vocab_export.json` from the PWA. New words are added in full; for existing words only `stats` are merged (imagegen fields are never overwritten).
 - **Run panel** — select a generation script, edit the positive/refiner/negative prompts, click **▶ Run**. Jobs are queued; multiple words can be enqueued while one is running.
 - **Game mode** — zap icon in the pill. Definition or context flashcard with four-choice answer. Stats saved per word in `vocab.json`.
 - **Add word** — ＋ button in the sidebar; in game mode opens a quick-add bar without leaving the game.
@@ -188,7 +189,7 @@ The PWA and imagegen share a common UI layer: `docs/vocab.css` (styles) and `doc
 - **Game mode** — four-choice flashcard quiz with five modes selectable in the context row: **Random** (default, picks a viable mode each round), **Context** (definition or sentence → pick word), **Definitions** (word → pick definition), **Image** (image → pick word), **Dutch** (Dutch translation → pick word). Pool filtered per mode; stats weighted and shared across modes per word.
 - **Add word in game mode** — quick-add bar slides in below the game card; doesn't leave game mode.
 - **Word of the Day** — on open, if >1 hour since last shown, a modal displays the day's word with part of speech and definition. Word is deterministic per calendar date.
-- **Settings** — sync vocab, export vocab, reset game stats (gear icon in gallery context row).
+- **Settings** — sync vocab, export vocab as `vocab_export.json`, reset game stats (gear icon in gallery context row).
 - **Add / delete word** — stored in localStorage only.
 - **Arrow keys** — navigate words in word view; ignored when focus is inside a text field.
 - **Mobile (≤ 600px)** — sidebar collapses to a search bar (with magnifying glass icon) above the panel controls; word list appears as an upward overlay when searching. Settings gear has no background.

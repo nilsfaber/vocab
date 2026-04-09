@@ -1,4 +1,4 @@
-const CACHE = 'vocab-v39';
+const CACHE = 'vocab-v40';
 const SHELL = ['/', '/index.html', '/vocab.css', '/vocab.js', '/manifest.json', '/icons.svg', '/icons/icon-192.svg', '/icons/icon-512.svg'];
 
 self.addEventListener('install', e => {

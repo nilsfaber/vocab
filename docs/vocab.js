@@ -123,13 +123,9 @@ const altsSection    = document.getElementById('alts-section');
 const altsGrid       = document.getElementById('alts-grid');
 const flagBtn        = document.getElementById('flag-btn');
 const defEdit        = document.getElementById('def-edit');
-const defSaveBtn     = document.getElementById('def-save-btn');
 const transEdit      = document.getElementById('trans-edit');
-const transSaveBtn   = document.getElementById('trans-save-btn');
 const synsEdit       = document.getElementById('syns-edit');
-const synsSaveBtn    = document.getElementById('syns-save-btn');
 const antsEdit       = document.getElementById('ants-edit');
-const antsSaveBtn    = document.getElementById('ants-save-btn');
 const uiToggle       = document.getElementById('ui-toggle');
 const lightbox       = document.getElementById('lightbox');
 const lightboxImg    = document.getElementById('lightbox-img');
@@ -418,24 +414,6 @@ function openWord(word) {
       overlay.textContent = img.filename.replace(`_${img.script}.png`, '');
       thumb.appendChild(overlay);
 
-      // Approved toggle (imagegen only)
-      const approveBtn = document.createElement('button');
-      approveBtn.className = 'approve-btn' + (img.approved ? ' approved' : '');
-      approveBtn.title = img.approved ? 'Approved' : 'Mark as approved';
-      approveBtn.textContent = '✓';
-      approveBtn.addEventListener('click', async e => {
-        e.stopPropagation();
-        img.approved = !img.approved;
-        approveBtn.classList.toggle('approved', img.approved);
-        approveBtn.title = img.approved ? 'Approved' : 'Mark as approved';
-        const updatedImages = (vocab[word]?.images || []).map(i =>
-          i.filename === img.filename ? { ...i, approved: img.approved } : i
-        );
-        if (vocab[word]) vocab[word].images = updatedImages;
-        await updateWordField(word, { images: updatedImages });
-      });
-      thumb.appendChild(approveBtn);
-
       thumb.addEventListener('click', async () => {
         if (vocab[word]) vocab[word].default_image = img.filename;
         openWord(word);
@@ -478,49 +456,8 @@ function setViewMode(mode) {
 function setWordView(active) { setViewMode(active ? 'word' : 'gallery'); }
 setViewMode('gallery');
 
-// ── Unsaved-changes guard ─────────────────────────────────────────────────────
-const unsavedModal     = document.getElementById('unsaved-modal');
-const unsavedSaveBtn   = document.getElementById('unsaved-save-btn');
-const unsavedDiscardBtn= document.getElementById('unsaved-discard-btn');
-const unsavedCancelBtn = document.getElementById('unsaved-cancel-btn');
-let pendingNavAction   = null;
-
-function guardNav(action) {
-  if (!wordInfoEditing) { action(); return; }
-  pendingNavAction = action;
-  if (unsavedModal) unsavedModal.classList.add('open');
-}
-
-if (unsavedSaveBtn) {
-  unsavedSaveBtn.addEventListener('click', async () => {
-    if (unsavedModal) unsavedModal.classList.remove('open');
-    await saveWordInfo();
-    pendingNavAction?.();
-    pendingNavAction = null;
-  });
-}
-if (unsavedDiscardBtn) {
-  unsavedDiscardBtn.addEventListener('click', () => {
-    if (unsavedModal) unsavedModal.classList.remove('open');
-    resetWordInfoEdit();
-    pendingNavAction?.();
-    pendingNavAction = null;
-  });
-}
-if (unsavedCancelBtn) {
-  unsavedCancelBtn.addEventListener('click', () => {
-    if (unsavedModal) unsavedModal.classList.remove('open');
-    pendingNavAction = null;
-  });
-}
-if (unsavedModal) {
-  unsavedModal.addEventListener('click', e => {
-    if (e.target === unsavedModal) {
-      unsavedModal.classList.remove('open');
-      pendingNavAction = null;
-    }
-  });
-}
+// ── Word info auto-save (debounced) ──────────────────────────────────────────
+function guardNav(action) { action(); }
 
 // ── Prev/next navigation (swipe + arrow keys) ─────────────────────────────────
 function animatedOpenWord(word, dir) {
@@ -645,20 +582,10 @@ function parseList(val) {
   return val.split(',').map(s => s.trim()).filter(Boolean);
 }
 
-let wordInfoEditing = false;
 const wordInfoFields = () => [defEdit, transEdit, synsEdit, antsEdit].filter(Boolean);
 
-function enterWordInfoEdit() {
-  wordInfoEditing = true;
-  wordInfoFields().forEach(f => { f.readOnly = false; });
-  if (defSaveBtn) { defSaveBtn.classList.add('editing'); setBtnIcon(defSaveBtn, 'check'); }
-  defEdit?.focus();
-}
-
+let _saveTimer = null;
 async function saveWordInfo() {
-  wordInfoEditing = false;
-  wordInfoFields().forEach(f => { f.readOnly = true; });
-  if (defSaveBtn) { defSaveBtn.classList.remove('editing'); setBtnIcon(defSaveBtn, 'pencil'); }
   if (!selectedWord) return;
   const fields = { definition: defEdit?.value.trim() || '' };
   if (transEdit) fields.translation = { ...(vocab[selectedWord]?.translation || {}), nl: transEdit.value.trim() };
@@ -666,18 +593,15 @@ async function saveWordInfo() {
   if (antsEdit)  fields.antonyms    = parseList(antsEdit.value);
   await updateWordField(selectedWord, fields);
 }
+function debouncedSave() {
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(saveWordInfo, 600);
+}
+wordInfoFields().forEach(f => f?.addEventListener('input', debouncedSave));
 
 function resetWordInfoEdit() {
-  wordInfoEditing = false;
-  wordInfoFields().forEach(f => { f.readOnly = true; });
-  if (defSaveBtn) { defSaveBtn.classList.remove('editing'); setBtnIcon(defSaveBtn, 'pencil'); }
-}
-
-if (defSaveBtn) {
-  defSaveBtn.addEventListener('click', () => {
-    if (!wordInfoEditing) enterWordInfoEdit();
-    else saveWordInfo();
-  });
+  clearTimeout(_saveTimer);
+  _saveTimer = null;
 }
 
 // ── Flag button (imagegen only) ───────────────────────────────────────────────
@@ -826,12 +750,6 @@ function openNewWordMode() {
   if (transEdit) transEdit.value = '';
   if (synsEdit)  synsEdit.value  = '';
   if (antsEdit)  antsEdit.value  = '';
-  [defEdit, transEdit, synsEdit, antsEdit].forEach(f => { if (f) f.readOnly = true; });
-  [defSaveBtn, transSaveBtn, synsSaveBtn, antsSaveBtn].forEach(b => {
-    if (!b) return;
-    b.classList.remove('editing', 'saved');
-    setBtnIcon(b, 'pencil');
-  });
   if (promptEdit)   promptEdit.value   = '';
   if (refinerEdit)  refinerEdit.value  = '';
   if (negativeEdit) negativeEdit.value = '';
