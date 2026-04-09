@@ -1389,15 +1389,13 @@ details.occurrence-item summary::-webkit-details-marker { display: none; }
 /* ── UI hidden state ── */
 body.ui-hidden #sidebar,
 body.ui-hidden #open-sidebar,
-body.ui-hidden #alts-section,
-body.ui-hidden #context-row,
 body.ui-hidden #view-pill {
   visibility: hidden;
   pointer-events: none;
 }
 /* Hide title bar buttons but keep the word title visible */
-body.ui-hidden #delete-word-btn,
+/* body.ui-hidden #delete-word-btn,
 body.ui-hidden #flag-btn {
   visibility: hidden;
   pointer-events: none;
-}
+} */

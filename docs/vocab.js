@@ -232,7 +232,7 @@ function renderWordList() {
       dot.className = 'no-default-dot';
       item.appendChild(dot);
     }
-    item.addEventListener('click', () => guardNav(() => openWord(word)));
+    item.addEventListener('click', () => openWord(word));
     wordList.appendChild(item);
   });
   const q = searchInput.value.trim().toLowerCase();
@@ -261,7 +261,7 @@ function renderGallery() {
     lbl.textContent = data.word || word;
     card.appendChild(lbl);
 
-    card.addEventListener('click', () => guardNav(() => openWord(word)));
+    card.addEventListener('click', () => openWord(word));
     gallery.appendChild(card);
   });
   const q = searchInput.value.trim().toLowerCase();
@@ -457,8 +457,6 @@ function setWordView(active) { setViewMode(active ? 'word' : 'gallery'); }
 setViewMode('gallery');
 
 // ── Word info auto-save (debounced) ──────────────────────────────────────────
-function guardNav(action) { action(); }
-
 // ── Prev/next navigation (swipe + arrow keys) ─────────────────────────────────
 function animatedOpenWord(word, dir) {
   openWord(word);
@@ -471,13 +469,13 @@ function navigatePrev() {
   if (!selectedWord) return;
   const words = sortedWords();
   const idx = words.indexOf(selectedWord);
-  if (idx > 0) guardNav(() => animatedOpenWord(words[idx - 1], 'prev'));
+  if (idx > 0) animatedOpenWord(words[idx - 1], 'prev');
 }
 function navigateNext() {
   if (!selectedWord) return;
   const words = sortedWords();
   const idx = words.indexOf(selectedWord);
-  if (idx < words.length - 1) guardNav(() => animatedOpenWord(words[idx + 1], 'next'));
+  if (idx < words.length - 1) animatedOpenWord(words[idx + 1], 'next');
 }
 
 // Swipe detection with real-time drag tracking
@@ -537,46 +535,34 @@ if (mainEl) {
 // Pill button listeners
 if (pillGame) pillGame.addEventListener('click', () => {
   if (gameView && gameView.classList.contains('active')) {
-    guardNav(() => {
-      selectedWord = null;
-      localStorage.removeItem('imagen_open_word');
-      document.querySelectorAll('.word-item').forEach(el => el.classList.remove('active'));
-      setViewMode('gallery');
-    });
-    return;
-  }
-  guardNav(() => {
-    if (typeof isNewWordMode !== 'undefined' && isNewWordMode) exitNewWordMode();
-    selectedWord = null;
-    localStorage.removeItem('imagen_open_word');
-    document.querySelectorAll('.word-item').forEach(el => el.classList.remove('active'));
-    initGameResults();
-    gameScore = gameAttempts = 0;
-    if (gameScoreEl)    gameScoreEl.textContent = '0';
-    if (gameAttemptsEl) gameAttemptsEl.textContent = '0';
-    gameRecentWords = [];
-    setViewMode('game');
-    nextGameRound();
-  });
-});
-if (pillGallery) pillGallery.addEventListener('click', () => {
-  guardNav(() => {
-    if (typeof isNewWordMode !== 'undefined' && isNewWordMode) exitNewWordMode();
     selectedWord = null;
     localStorage.removeItem('imagen_open_word');
     document.querySelectorAll('.word-item').forEach(el => el.classList.remove('active'));
     setViewMode('gallery');
-  });
+    return;
+  }
+  if (typeof isNewWordMode !== 'undefined' && isNewWordMode) exitNewWordMode();
+  selectedWord = null;
+  localStorage.removeItem('imagen_open_word');
+  document.querySelectorAll('.word-item').forEach(el => el.classList.remove('active'));
+  initGameResults();
+  gameScore = gameAttempts = 0;
+  if (gameScoreEl)    gameScoreEl.textContent = '0';
+  if (gameAttemptsEl) gameAttemptsEl.textContent = '0';
+  gameRecentWords = [];
+  setViewMode('game');
+  nextGameRound();
+});
+if (pillGallery) pillGallery.addEventListener('click', () => {
+  if (typeof isNewWordMode !== 'undefined' && isNewWordMode) exitNewWordMode();
+  selectedWord = null;
+  localStorage.removeItem('imagen_open_word');
+  document.querySelectorAll('.word-item').forEach(el => el.classList.remove('active'));
+  setViewMode('gallery');
 });
 if (pillWord) pillWord.addEventListener('click', () => {
   if (selectedWord) setViewMode('word');
 });
-
-// ── Word info panel — single pencil/save toggle ───────────────────────────────
-function setBtnIcon(btn, name) {
-  const use = btn?.querySelector('use');
-  if (use) use.setAttribute('href', `${ICON_BASE}icons.svg#icon-${name}`);
-}
 
 function parseList(val) {
   return val.split(',').map(s => s.trim()).filter(Boolean);
@@ -804,7 +790,7 @@ if (addWordBtn) addWordBtn.addEventListener('click', () => {
       if (quickAddPanel.classList.contains('visible')) quickAddInput?.focus();
     }
   } else {
-    guardNav(() => openNewWordMode());
+    openNewWordMode();
   }
 });
 

@@ -32,10 +32,20 @@
 <div id="panel-controls">
   <div id="context-row">
     <div id="ctx-game" class="ctx-panel">
+      <select id="game-mode-select" title="Game mode">
+        <option value="random">Random</option>
+        <option value="context">Context</option>
+        <option value="reverse">Definitions</option>
+        <option value="image">Image</option>
+        <option value="dutch">Dutch</option>
+      </select>
       <span id="pool-label"></span>
       Score: <strong id="game-score">0</strong> / <strong id="game-attempts">0</strong>
     </div>
     <div id="ctx-gallery" class="ctx-panel active">
+      <button class="ctx-btn icon-only" id="settings-btn" title="Settings">
+        <svg class="icon"><use href="/docs/icons.svg#icon-settings"/></svg>
+      </button>
       <button class="ctx-btn icon-only" id="import-btn" title="Import vocab_export.json">
         <svg class="icon"><use href="/docs/icons.svg#icon-upload"/></svg>
       </button>
@@ -166,6 +176,18 @@
 
 <!-- Lightbox -->
 <div id="lightbox"><img id="lightbox-img" src="" alt=""></div>
+
+<!-- Settings modal -->
+<div id="settings-modal">
+  <div id="settings-modal-box">
+    <div id="settings-modal-title">Settings</div>
+    <button class="modal-action" id="export-btn" title="Export vocabulary as JSON">
+      <svg class="icon"><use href="/docs/icons.svg#icon-download"/></svg> Export vocabulary
+    </button>
+    <button id="reset-stats-btn">Reset game stats</button>
+    <button id="settings-close-btn">Close</button>
+  </div>
+</div>
 
 <!-- Confirm delete modal -->
 <div id="confirm-modal">
@@ -381,6 +403,35 @@ async function applyToDoc(word, filename, verbose = false) {
     }
   }
 }
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+const settingsBtn   = document.getElementById('settings-btn');
+const settingsModal = document.getElementById('settings-modal');
+
+settingsBtn.addEventListener('click', () => settingsModal.classList.add('open'));
+document.getElementById('settings-close-btn').addEventListener('click', () => settingsModal.classList.remove('open'));
+settingsModal.addEventListener('click', e => { if (e.target === settingsModal) settingsModal.classList.remove('open'); });
+
+document.getElementById('export-btn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(vocab, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'vocab_export.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  settingsModal.classList.remove('open');
+});
+
+document.getElementById('reset-stats-btn').addEventListener('click', async () => {
+  if (!confirm('Reset all game stats?')) return;
+  for (const key of Object.keys(vocab)) {
+    if (vocab[key].stats) {
+      vocab[key].stats = { correct: 0, wrong: 0 };
+      await updateWordField(key, { stats: vocab[key].stats });
+    }
+  }
+  settingsModal.classList.remove('open');
+});
 
 // ── Import vocab_export.json ──────────────────────────────────────────────────
 const importBtn  = document.getElementById('import-btn');
