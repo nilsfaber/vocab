@@ -3,18 +3,15 @@ test/
 venv/
 
 # imagegen: ignore generated content, track source files
-imagen/
 imagegen/defaults.json
 imagegen/regen_queue.json
 imagegen/scenes.json
 imagegen/words/
 
-# docs: generated output
-app/vocab.json
-docs/parse_log.json
+# docs: generated output (never commit these)
 docs/vocab.json
-docs/images/
-images-hi-res/
+docs/parse_log.json
+
 
 # Python
 __pycache__/

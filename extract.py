@@ -300,6 +300,19 @@ def export_json(output=None):
     _save_vocab(vocab, output)
     total_occs = sum(len(e.get("occurrences", [])) for e in vocab.values())
     _log(f"✅ {len(vocab)} words ({new_count} new), {total_occs} occurrences → {output}")
+
+    # Write public version: occurrences stripped of paragraph text (copyright-safe)
+    public_output = output.replace("vocab.json", "vocab_public.json")
+    public_vocab = {}
+    for key, entry in vocab.items():
+        public_entry = {k: v for k, v in entry.items() if k != "occurrences"}
+        public_entry["occurrences"] = [
+            {"book": occ["book"]} for occ in entry.get("occurrences", [])
+        ]
+        public_vocab[key] = public_entry
+    _save_vocab(public_vocab, public_output)
+    _log(f"📤 Public vocab (no paragraphs) → {public_output}")
+
     return vocab
 
 

@@ -1,5 +1,5 @@
-const CACHE = 'vocab-v34';
-const SHELL = ['/', '/index.html', '/manifest.json', '/icons/icon-192.svg', '/icons/icon-512.svg'];
+const CACHE = 'vocab-v37';
+const SHELL = ['/', '/index.html', '/vocab.css', '/vocab.js', '/manifest.json', '/icons.svg', '/icons/icon-192.svg', '/icons/icon-512.svg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)));

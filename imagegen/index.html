@@ -3,743 +3,148 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Imagen — vocabulary image manager</title>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --bg:           #0a0a0f;
-    --glass-bg:     rgba(255,255,255,0.07);
-    --glass-border: rgba(255,255,255,0.12);
-    --glass-blur:   blur(14px);
-    --radius:       16px;
-    --sidebar-w:    240px;
-    --accent:       #7c9fff;
-    --text:         #e8e8f0;
-    --text-dim:     #888;
-    --red:          #e05555;
-    --hi-border:    #7c9fff;
-    --gap:          10px;
-    --cols:         4;
-  }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: system-ui, -apple-system, sans-serif;
-    display: flex;
-    height: 100vh;
-    overflow: hidden;
-  }
-
-  /* ── Frosted glass ── */
-  .glass {
-    backdrop-filter: var(--glass-blur);
-    background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius);
-  }
-
-  /* ── Sidebar column ── */
-  #sidebar {
-    width: var(--sidebar-w);
-    min-width: var(--sidebar-w);
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    gap: var(--gap);
-    /* top/left/right gap; bottom leaves room for panel-controls */
-    padding: var(--gap) 0 calc(54px + var(--gap) * 2) var(--gap);
-    transition: width 0.2s, min-width 0.2s, padding 0.2s, opacity 0.2s;
-    overflow: hidden;
-    flex-shrink: 0;
-  }
-  #sidebar.collapsed {
-    width: 0;
-    min-width: 0;
-    padding: 0;
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  /* ── Top panel: word list ── */
-  #panel-words {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 10px;
-    overflow: hidden;
-    backdrop-filter: var(--glass-blur);
-    background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius);
-  }
-
-  #word-list {
-    flex: 1;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  #word-list::-webkit-scrollbar { width: 4px; }
-  #word-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
-
-  .word-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 7px 10px;
-    border-radius: 9px;
-    cursor: pointer;
-    font-size: 13px;
-    color: var(--text);
-    transition: background 0.1s;
-    flex-shrink: 0;
-  }
-  .word-item:hover { background: rgba(255,255,255,0.08); }
-  .word-item.active { background: rgba(124,159,255,0.18); color: var(--accent); }
-
-  .no-default-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--red);
-    flex-shrink: 0;
-  }
-
-  .regen-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #f0a040;
-    flex-shrink: 0;
-  }
-
-  /* Search bar — sits at the bottom of the top panel */
-  #search {
-    flex-shrink: 0;
-    width: 100%;
-    background: rgba(0,0,0,0.25);
-    border: 1px solid var(--glass-border);
-    border-radius: 10px;
-    color: var(--text);
-    padding: 7px 10px;
-    font-size: 13px;
-    outline: none;
-  }
-  #search::placeholder { color: var(--text-dim); }
-  #search:focus { border-color: var(--accent); }
-
-  /* ── Bottom bar: fixed bottom-left, always same width as sidebar ── */
-  #panel-controls {
-    position: fixed;
-    bottom: var(--gap);
-    left: var(--gap);
-    width: calc(var(--sidebar-w) - var(--gap));  /* sidebar padding on left only */
-    height: 54px;
-    display: flex;
-    align-items: center;
-    gap: 0;
-    padding: 0;
-    z-index: 300;
-    /* no glass — children have their own */
-  }
-
-  /* ui-toggle: always leftmost, square */
-  #ui-toggle {
-    flex-shrink: 0;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    backdrop-filter: var(--glass-blur);
-    background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    color: var(--text);
-    cursor: pointer;
-    font-size: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.1s;
-    /* not fixed — lives in sidebar flow */
-  }
-  #ui-toggle:hover { background: rgba(255,255,255,0.13); }
-
-  /* back-btn and slider-wrap share the same slot to the right of ui-toggle */
-  #back-btn, #slider-wrap {
-    flex: 1;
-    min-width: 0;
-    height: 44px;
-    margin-left: 8px;
-    border-radius: 12px;
-    backdrop-filter: var(--glass-blur);
-    background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.1s, opacity 0.15s;
-    overflow: hidden;
-  }
-  #back-btn {
-    color: var(--text);
-    cursor: pointer;
-    font-size: 15px;
-    gap: 7px;
-    /* hidden by default, shown in word view */
-    display: none;
-  }
-  #back-btn:hover { background: rgba(255,255,255,0.13); }
-
-  #slider-wrap {
-    gap: 10px;
-    padding: 0 12px;
-  }
-  /* custom slider track */
-  #cols-slider {
-    flex: 1;
-    min-width: 0;
-    width: 0; /* flex will size it, prevents intrinsic overflow */
-    -webkit-appearance: none;
-    appearance: none;
-    height: 3px;
-    border-radius: 2px;
-    background: rgba(255,255,255,0.15);
-    outline: none;
-    cursor: pointer;
-  }
-  #cols-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: var(--accent);
-    border: 2px solid rgba(0,0,0,0.4);
-    cursor: pointer;
-    box-shadow: 0 0 6px rgba(124,159,255,0.5);
-  }
-  #cols-slider::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: var(--accent);
-    border: 2px solid rgba(0,0,0,0.4);
-    cursor: pointer;
-    box-shadow: 0 0 6px rgba(124,159,255,0.5);
-  }
-  #cols-label {
-    font-size: 11px;
-    color: var(--text-dim);
-    min-width: 14px;
-    text-align: right;
-    flex-shrink: 0;
-  }
-
-  #queue-indicator {
-    flex-shrink: 0;
-    height: 32px;
-    padding: 0 10px;
-    border-radius: 9px;
-    background: rgba(240,160,64,0.15);
-    border: 1px solid rgba(240,160,64,0.35);
-    color: #f0a040;
-    font-size: 12px;
-    display: none;
-    align-items: center;
-    gap: 5px;
-    white-space: nowrap;
-    margin-left: 8px;
-  }
-  #queue-indicator.visible { display: flex; }
-
-  /* ── Hamburger (sidebar collapsed) ── */
-  #open-sidebar {
-    position: fixed;
-    top: var(--gap);
-    left: var(--gap);
-    width: 40px;
-    height: 40px;
-    border-radius: 12px;
-    backdrop-filter: var(--glass-blur);
-    background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    color: var(--text);
-    cursor: pointer;
-    font-size: 18px;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-  }
-  #open-sidebar.visible { display: flex; }
-  #open-sidebar:hover { background: rgba(255,255,255,0.13); }
-
-  /* ── Main area ── */
-  #main {
-    flex: 1;
-    overflow-y: auto;
-    padding: var(--gap) var(--gap) var(--gap) var(--gap);
-    position: relative;
-    min-width: 0;
-  }
-  #main::-webkit-scrollbar { width: 6px; }
-  #main::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
-
-  /* ── Gallery ── */
-  #gallery {
-    display: grid;
-    grid-template-columns: repeat(var(--cols), 1fr);
-    gap: 10px;
-  }
-
-  .gallery-card {
-    border-radius: 12px;
-    overflow: hidden;
-    cursor: pointer;
-    position: relative;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid var(--glass-border);
-    transition: transform 0.15s, box-shadow 0.15s;
-    margin: 4px;
-  }
-  .gallery-card:hover { transform: scale(1.03); box-shadow: 0 4px 24px rgba(0,0,0,0.5); }
-  .gallery-card img { width: 100%; height: auto; display: block; }
-  .gallery-card .card-label {
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    padding: 4px 8px 6px;
-    background: linear-gradient(transparent, rgba(0,0,0,0.7));
-    font-size: 12px;
-    font-weight: 600;
-    color: #fff;
-  }
-  .gallery-card.hidden { display: none; }
-
-
-
-  /* ── Word view ── */
-  #word-view {
-    display: none;
-    flex-direction: column;
-    gap: 14px;
-  }
-  #word-view.active { display: flex; }
-
-  /* Main image — full width, word title overlaid */
-  #main-image-wrap {
-    width: 100%;
-    border-radius: 14px;
-    overflow: hidden;
-    box-shadow: 0 8px 40px rgba(0,0,0,0.6);
-    background: rgba(255,255,255,0.04);
-    border: 1px solid var(--glass-border);
-    cursor: zoom-in;
-    position: relative;
-  }
-  #main-image-wrap img {
-    width: 100%;
-    display: block;
-  }
-  #word-title-bar {
-
-    top: 0; left: 0; right: 0;
-    padding: 10px 14px 12px;
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  #word-title {
-    font-size: 22px;
-    font-weight: 700;
-    color: #fff;
-    pointer-events: none;
-  }
-
-  /* ── Alternatives section (always visible, no collapsible) ── */
-  #alts-section {
-    width: 100%;
-  }
-  #alts-heading {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-    color: rgba(255,255,255,0.3);
-    margin-bottom: 8px;
-    padding-left: 2px;
-  }
-  #alts-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 8px;
-  }
-  .alt-thumb {
-    aspect-ratio: 16/10;
-    border-radius: 9px;
-    overflow: hidden;
-    cursor: pointer;
-    position: relative;
-    border: 2px solid transparent;
-    transition: border-color 0.15s, transform 0.15s;
-    background: rgba(255,255,255,0.04);
-    margin-bottom: 8px;
-  }
-  .alt-thumb:hover { transform: scale(1.04); }
-  .alt-thumb.selected { border-color: var(--hi-border); box-shadow: 0 0 0 1px var(--hi-border); }
-  .alt-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .alt-thumb.generating {
-    border-color: var(--accent);
-    cursor: default;
-    animation: pulse-border 1.4s ease-in-out infinite;
-  }
-  .alt-thumb.generating:hover { transform: none; }
-  .alt-thumb.generating .gen-label {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 11px;
-    color: rgba(255,255,255,0.5);
-    letter-spacing: 0.06em;
-  }
-  @keyframes pulse-border {
-    0%, 100% { border-color: var(--accent); opacity: 0.6; }
-    50%       { border-color: var(--accent); opacity: 1; }
-  }
-  .alt-thumb .alt-overlay {
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    padding: 3px 6px 4px;
-    background: linear-gradient(transparent, rgba(0,0,0,0.75));
-    font-size: 10px;
-    color: rgba(255,255,255,0.7);
-  }
-
-  /* ── Run panel ── */
-  #run-panel {
-    width: 100%;
-    background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    border-radius: 12px;
-    backdrop-filter: var(--glass-blur);
-    overflow: hidden;
-  }
-  #run-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--glass-border);
-  }
-  #run-header .run-label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-    color: rgba(255,255,255,0.3);
-    flex-shrink: 0;
-  }
-  #script-select {
-    flex: 1;
-    background: rgba(0,0,0,0.3);
-    border: 1px solid var(--glass-border);
-    border-radius: 8px;
-    color: var(--text);
-    padding: 5px 8px;
-    font-size: 12px;
-    outline: none;
-    cursor: pointer;
-  }
-  #script-select option { background: #1a1a2e; }
-  #run-btn {
-    flex-shrink: 0;
-    padding: 5px 14px;
-    border-radius: 8px;
-    background: rgba(124,159,255,0.15);
-    border: 1px solid rgba(124,159,255,0.3);
-    color: var(--accent);
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 600;
-    transition: background 0.1s;
-  }
-  #run-btn:hover:not(:disabled) { background: rgba(124,159,255,0.28); }
-  #run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-  #flag-btn {
-    flex-shrink: 0;
-    width: 30px;
-    height: 26px;
-    border-radius: 7px;
-    background: rgba(0,0,0,0);
-    border:  0px;
-    color: rgba(255,255,255,0.6);
-    cursor: pointer;
-    font-size: 26px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.1s, color 0.1s, border-color 0.1s;
-  }
-  #flag-btn:hover { color:#fff; }
-  #flag-btn.flagged {
-
-    color: #f0a040;
-  }
-
-  .prompt-textarea {
-    display: block;
-    width: 100%;
-    background: rgba(0,0,0,0.25);
-    border: none;
-    border-bottom: 1px solid var(--glass-border);
-    color: var(--text);
-    font-family: ui-monospace, monospace;
-    font-size: 11.5px;
-    line-height: 1.55;
-    padding: 10px 14px;
-    resize: none;
-    overflow: hidden;
-    min-height: 44px;
-    outline: none;
-  }
-  .prompt-textarea::placeholder { color: var(--text-dim); }
-  .prompt-textarea:focus { background: rgba(0,0,0,0.38); }
-  .prompt-label {
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-    color: rgba(255,255,255,0.28);
-    padding: 6px 14px 2px;
-    display: block;
-  }
-  #negative-edit { color: rgba(255,85,85,0.75); }
-  #negative-edit:focus { color: rgba(255,110,110,0.9); }
-  /* keep old ID working */
-  #prompt-edit { }
-  #run-output {
-    display: none;
-    font-family: ui-monospace, monospace;
-    font-size: 11px;
-    line-height: 1.5;
-    color: rgba(255,255,255,0.6);
-    background: rgba(0,0,0,0.35);
-    padding: 10px 14px;
-    max-height: 220px;
-    overflow-y: auto;
-    white-space: pre-wrap;
-    word-break: break-all;
-  }
-  #run-output.visible { display: block; }
-  #run-output .out-ok   { color: #7ecf7e; }
-  #run-output .out-err  { color: #e07070; }
-  #run-output .out-done { color: var(--accent); font-weight: 600; }
-
-
-  /* ── Error ── */
-  #error-msg {
-    display: none;
-    color: var(--text-dim);
-    font-size: 15px;
-    padding: 40px;
-    text-align: center;
-  }
-
-  /* ── Fullscreen lightbox ── */
-  #lightbox {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.92);
-    z-index: 1000;
-    align-items: center;
-    justify-content: center;
-    cursor: zoom-out;
-  }
-  #lightbox.open { display: flex; }
-  #lightbox img {
-    max-width: 96vw;
-    max-height: 96vh;
-    border-radius: 10px;
-    box-shadow: 0 12px 60px rgba(0,0,0,0.8);
-    object-fit: contain;
-  }
-
-  /* ── Word info (definition + translation) ── */
-  #word-info-panel {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-  .word-info-box {
-    background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    border-radius: 12px;
-    backdrop-filter: var(--glass-blur);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-  }
-  .word-info-label {
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: rgba(255,255,255,0.3);
-    padding: 8px 12px 0;
-    flex-shrink: 0;
-  }
-  .word-info-box textarea {
-    flex: 1;
-    display: block;
-    width: 100%;
-    background: transparent;
-    border: none;
-    color: var(--text);
-    font-size: 12.5px;
-    line-height: 1.5;
-    padding: 6px 12px 4px;
-    resize: none;
-    overflow: hidden;
-    outline: none;
-    font-family: inherit;
-  }
-  .word-info-box textarea::placeholder { color: var(--text-dim); }
-  .word-info-actions {
-    display: flex;
-    justify-content: flex-end;
-    padding: 2px 8px 8px;
-  }
-  .word-info-actions button {
-    padding: 3px 10px;
-    border-radius: 6px;
-    background: rgba(124,159,255,0.12);
-    border: 1px solid rgba(124,159,255,0.25);
-    color: var(--accent);
-    cursor: pointer;
-    font-size: 11px;
-    font-weight: 600;
-    transition: background 0.1s;
-  }
-  .word-info-actions button:hover { background: rgba(124,159,255,0.22); }
-
-  /* ── Approved badge on alt thumbnails ── */
-  .approve-btn {
-    position: absolute;
-    top: 4px; right: 4px;
-    width: 22px; height: 22px;
-    border-radius: 50%;
-    background: rgba(0,0,0,0.45);
-    border: 1px solid rgba(255,255,255,0.2);
-    color: rgba(255,255,255,0.4);
-    cursor: pointer;
-    font-size: 11px;
-    display: flex; align-items: center; justify-content: center;
-    transition: background 0.1s, color 0.1s, border-color 0.1s;
-    z-index: 2;
-  }
-  .approve-btn.approved {
-    background: rgba(100,200,120,0.3);
-    border-color: rgba(100,200,120,0.55);
-    color: #7ecf7e;
-  }
-  .approve-btn:hover { background: rgba(255,255,255,0.18); }
-
-  /* ── Unseen images dot (blue) ── */
-  .new-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: #5599ff;
-    flex-shrink: 0;
-  }
-
-  /* ── UI hidden state ── */
-  body.ui-hidden #sidebar,
-  body.ui-hidden #open-sidebar,
-  body.ui-hidden #word-title-bar,
-  body.ui-hidden #alts-section,
-  body.ui-hidden #back-btn,
-  body.ui-hidden #slider-wrap,
-  body.ui-hidden #queue-indicator {
-    visibility: hidden;
-    pointer-events: none;
-  }
-</style>
+<title>Imagen</title>
+<link rel="stylesheet" href="/docs/vocab.css">
 </head>
 <body>
 
-<!-- Collapsed sidebar hamburger -->
-<button id="open-sidebar" title="Open sidebar">☰</button>
-
-<!-- Sidebar: word list only -->
+<!-- Sidebar -->
 <nav id="sidebar">
   <div id="panel-words">
     <div id="word-list"></div>
-    <input id="search" type="search" placeholder="Search…" autocomplete="off">
+    <div id="search-wrap">
+      <svg class="icon search-icon"><use href="/docs/icons.svg#icon-search"/></svg>
+      <input id="search" type="search" placeholder="Search…" autocomplete="off">
+    </div>
+    <select id="sort-by" title="Sort order">
+      <option value="alpha">A – Z</option>
+      <option value="date">Date added</option>
+      <option value="occurrences">Occurrences</option>
+      <option value="score">Score</option>
+    </select>
+    <button id="add-word-btn">
+      <svg class="icon"><use href="/docs/icons.svg#icon-plus"/></svg> Add word
+    </button>
   </div>
 </nav>
 
-<!-- Bottom bar: fixed, always visible, ui-toggle always shown -->
+<!-- Bottom bar -->
 <div id="panel-controls">
-  <button id="ui-toggle" title="Toggle UI">⦿</button>
-
-  <!-- shown in word view -->
-  <button id="back-btn" title="Back to gallery">☷ Gallery</button>
-
-  <!-- shown in gallery view -->
-  <div id="slider-wrap">
-    <input id="cols-slider" type="range" min="1" max="8" step="1" value="4" title="Gallery columns">
-    <span id="cols-label">4</span>
+  <div id="context-row">
+    <div id="ctx-game" class="ctx-panel">
+      <span id="pool-label"></span>
+      Score: <strong id="game-score">0</strong> / <strong id="game-attempts">0</strong>
+    </div>
+    <div id="ctx-gallery" class="ctx-panel active">
+      <svg class="icon"><use href="/docs/icons.svg#icon-columns"/></svg>
+      <input id="cols-slider" type="range" min="1" max="8" step="1" value="4" title="Gallery columns">
+      <span id="cols-label">4</span>
+    </div>
+    <div id="ctx-word" class="ctx-panel">
+      <span id="queue-indicator">
+        <svg class="icon"><use href="/docs/icons.svg#icon-loader"/></svg>
+        <span id="queue-count">0</span> queued
+      </span>
+    </div>
   </div>
-
-  <span id="queue-indicator">🔁 <span id="queue-count">0</span> queued</span>
+  <div id="control-row">
+    <button id="ui-toggle" title="Toggle UI">
+      <svg class="icon icon-lg"><use href="/docs/icons.svg#icon-eye"/></svg>
+    </button>
+    <div id="view-pill">
+      <button class="pill-btn" id="pill-game" title="Game mode">
+        <svg class="icon icon-lg"><use href="/docs/icons.svg#icon-zap"/></svg>
+      </button>
+      <button class="pill-btn active" id="pill-gallery" title="Gallery">
+        <svg class="icon icon-lg"><use href="/docs/icons.svg#icon-grid"/></svg>
+      </button>
+      <button class="pill-btn" id="pill-word" title="Word view" disabled>
+        <svg class="icon icon-lg"><use href="/docs/icons.svg#icon-book"/></svg>
+      </button>
+    </div>
+  </div>
 </div>
 
 <!-- Main -->
 <main id="main">
-  <div id="error-msg">Could not load vocab. Is the server running? <code>python imagegen/server.py --prod</code></div>
+  <div id="error-msg">Could not load vocab. Is the server running? <code>python server.py</code></div>
 
   <!-- Gallery -->
   <div id="gallery"></div>
 
+  <!-- Game view -->
+  <div id="game-view">
+    <div id="quick-add-panel">
+      <input id="quick-add-input" type="text" placeholder="New word…" autocomplete="off" spellcheck="false">
+      <button id="quick-add-submit">
+        <svg class="icon"><use href="/docs/icons.svg#icon-plus"/></svg>
+      </button>
+    </div>
+    <div class="game-inner">
+      <div class="clue-card">
+        <div class="clue-label-row">
+          <span id="clue-label">What word fits here?</span>
+        </div>
+        <div id="clue-text"></div>
+        <div class="clue-card-footer">
+          <div id="clue-source"></div>
+          <div id="clue-solved-actions"></div>
+        </div>
+      </div>
+      <div class="game-choices" id="game-choices"></div>
+      <button id="game-next-btn">Skip →</button>
+    </div>
+  </div>
+
   <!-- Word view -->
   <div id="word-view">
-
+    <div id="new-word-bar">
+      <input id="new-word-input" type="text" placeholder="Enter new word…" autocomplete="off" spellcheck="false">
+      <button id="create-word-btn">Create</button>
+    </div>
     <div id="main-image-wrap">
       <img id="main-image" src="" alt="">
     </div>
-
-    <!-- Definition + translation editors -->
     <div id="word-info-panel">
-      <div class="word-info-box">
-              <div id="word-title-bar">
-        <div id="word-title"></div>
-        <button id="flag-btn" title="Flag for regeneration">⚑</button>
+      <div id="word-info-left">
+        <div id="word-title-bar">
+          <div id="word-title"></div>
+          <button id="flag-btn" class="icon-action-btn" title="Flag for regeneration">
+            <svg class="icon"><use href="/docs/icons.svg#icon-flag"/></svg>
+          </button>
+          <button id="delete-word-btn" class="icon-action-btn delete-btn" title="Delete word">
+            <svg class="icon"><use href="/docs/icons.svg#icon-trash"/></svg>
+          </button>
+          <button id="def-save-btn" class="pencil-btn" title="Edit definition">
+            <svg class="icon"><use href="/docs/icons.svg#icon-pencil"/></svg>
+          </button>
+        </div>
+        <textarea id="def-edit" spellcheck="false" placeholder="No definition…" rows="3" readonly></textarea>
       </div>
-        <textarea id="def-edit" spellcheck="false" placeholder="No definition…" rows="3"></textarea>
-        <div class="word-info-actions"><button id="def-save-btn">Save</button></div>
-      </div>
-      <div class="word-info-box">
-        <div class="word-info-label">Dutch</div>
-        <textarea id="trans-edit" spellcheck="false" placeholder="No translation…" rows="3"></textarea>
-        <div class="word-info-actions"><button id="trans-save-btn">Save</button></div>
+      <div id="word-info-right">
+        <div class="info-row">
+          <span class="info-row-label">Dutch</span>
+          <input id="trans-edit" type="text" spellcheck="false" placeholder="—" readonly>
+        </div>
+        <div class="info-row">
+          <span class="info-row-label">Synonyms</span>
+          <input id="syns-edit" type="text" placeholder="—" spellcheck="false" readonly>
+        </div>
+        <div class="info-row">
+          <span class="info-row-label">Antonyms</span>
+          <input id="ants-edit" type="text" placeholder="—" spellcheck="false" readonly>
+        </div>
       </div>
     </div>
 
     <div id="alts-section">
-      <div id="alts-heading">Alternatives</div>
       <div id="alts-grid"></div>
     </div>
-
     <!-- Run script panel -->
     <div id="run-panel">
       <div id="run-header">
-        <span class="run-label">Run script</span>
+        <button id="run-btn">▶</button>
         <select id="script-select"><option value="">Loading…</option></select>
-        <button id="run-btn">▶ Run</button>
       </div>
       <span class="prompt-label">Positive — base</span>
       <textarea id="prompt-edit" class="prompt-textarea" spellcheck="false" placeholder="Base prompt (scene + style keywords)"></textarea>
@@ -749,133 +154,95 @@
       <textarea id="negative-edit" class="prompt-textarea" spellcheck="false" placeholder="Negative prompt"></textarea>
       <div id="run-output"></div>
     </div>
+    <div id="occurrences-section" style="display:none">
+      <div id="occurrences-heading">Occurrences</div>
+      <div id="occurrences-list"></div>
+    </div>
+
+
   </div>
 </main>
 
 <!-- Lightbox -->
 <div id="lightbox"><img id="lightbox-img" src="" alt=""></div>
 
-<!-- UI toggle -->
+<!-- Confirm delete modal -->
+<div id="confirm-modal">
+  <div id="confirm-modal-box">
+    <div id="confirm-modal-title">Delete word?</div>
+    <div id="confirm-modal-body"></div>
+    <div id="confirm-modal-actions">
+      <button id="confirm-cancel-btn">Cancel</button>
+      <button id="confirm-delete-btn">Delete</button>
+    </div>
+  </div>
+</div>
 
+<!-- Unsaved changes modal -->
+<div id="unsaved-modal">
+  <div id="unsaved-modal-box">
+    <div id="unsaved-modal-title">Unsaved changes</div>
+    <div id="unsaved-modal-actions">
+      <button id="unsaved-cancel-btn">Cancel</button>
+      <button id="unsaved-discard-btn">Discard</button>
+      <button id="unsaved-save-btn">Save</button>
+    </div>
+  </div>
+</div>
 
+<script src="/docs/vocab.js"></script>
 <script>
-// ── Data model ────────────────────────────────────────────────────────────────
-let vocab = {};          // unified vocab.json — object keyed by lowercase word
-let selectedWord = null;
+// ── Imagegen-specific overrides and extensions ────────────────────────────────
 
-function getDefault(word)  { return vocab[word]?.default_image || vocab[word]?.images?.[0]?.filename || null; }
-function hasDefault(word)  { return !!vocab[word]?.default_image; }
-function isInRegen(word)   { return vocab[word]?.flagged_for_regen || false; }
+// Use local server for all API calls
+VOCAB_SERVER = `http://${location.hostname}:8765`;
+ICON_BASE    = '/docs/';
 
-// ── Unseen image tracking (#27) ───────────────────────────────────────────────
-const SEEN_KEY = 'imagen_seen';
-function getSeenImages(word) {
-  const seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '{}');
-  return new Set(seen[word] || []);
-}
-function markImagesSeen(word) {
-  const seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '{}');
-  seen[word] = (vocab[word]?.images || []).map(i => i.filename);
-  localStorage.setItem(SEEN_KEY, JSON.stringify(seen));
-}
-function hasUnseenImages(word) {
-  const images = vocab[word]?.images || [];
-  if (!images.length) return false;
-  const seen = getSeenImages(word);
-  return images.some(i => !seen.has(i.filename));
-}
+// Hi-res image path from imagegen words/ folder
+imgPath = (word, filename) => `words/${safeFilename(word)}/${filename}`;
 
-function safeFilename(word) {
-  return word.replace(/[^\w\-_. ]/g, '').trim().replace(/ /g, '_').slice(0, 80);
-}
-function imgPath(word, filename) { return `words/${safeFilename(word)}/${filename}`; }
-
-// ── DOM refs ─────────────────────────────────────────────────────────────────
-const sidebar        = document.getElementById('sidebar');
-const openBtn        = document.getElementById('open-sidebar');
-const sliderWrap     = document.getElementById('slider-wrap');
-const searchInput    = document.getElementById('search');
-const wordList       = document.getElementById('word-list');
-const colsSlider     = document.getElementById('cols-slider');
-const colsLabel      = document.getElementById('cols-label');
-const fullscreenBtn  = document.getElementById('fullscreen-btn');
-const gallery        = document.getElementById('gallery');
-const wordView       = document.getElementById('word-view');
-const backBtn        = document.getElementById('back-btn');
-const wordTitle      = document.getElementById('word-title');
-const mainImageWrap  = document.getElementById('main-image-wrap');
-const mainImage      = document.getElementById('main-image');
-const altsSection    = document.getElementById('alts-section');
-const altsGrid       = document.getElementById('alts-grid');
-const flagBtn        = document.getElementById('flag-btn');
-const defEdit        = document.getElementById('def-edit');
-const defSaveBtn     = document.getElementById('def-save-btn');
-const transEdit      = document.getElementById('trans-edit');
-const transSaveBtn   = document.getElementById('trans-save-btn');
-const queueIndicator = document.getElementById('queue-indicator');
-const queueCount     = document.getElementById('queue-count');
-const uiToggle       = document.getElementById('ui-toggle');
-const errorMsg       = document.getElementById('error-msg');
-const lightbox       = document.getElementById('lightbox');
-const lightboxImg    = document.getElementById('lightbox-img');
-
-// ── Server API helpers ────────────────────────────────────────────────────────
-const SERVER = `http://${location.hostname}:8765`;
-
-async function updateWordField(word, fields) {
+// Always reload from server so imagegen picks up generation results
+loadVocab = async function() {
   try {
-    const res = await fetch(`${SERVER}/api/update-word`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ word, ...fields }),
-    });
-    const data = await res.json();
-    if (!data.error && vocab[word]) Object.assign(vocab[word], fields);
-    return !data.error;
-  } catch { return false; }
-}
+    const resp = await fetch(`${VOCAB_SERVER}/api/vocab`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    vocab = await resp.json();
+    initAfterVocabLoad();
+  } catch (e) {
+    document.getElementById('error-msg').style.display = 'block';
+    console.error('Failed to load vocab:', e);
+  }
+};
 
+// ── Queue indicator ───────────────────────────────────────────────────────────
 async function updateQueueIndicator() {
   try {
-    const res  = await fetch(`${SERVER}/api/queue`);
+    const res  = await fetch(`${VOCAB_SERVER}/api/queue`);
     const data = await res.json();
     const n = data.pending.length + (data.running ? 1 : 0);
     queueCount.textContent = n;
     queueIndicator.classList.toggle('visible', n > 0);
-  } catch { /* ignore */ }
+  } catch {}
 }
 
 // ── Script runner ─────────────────────────────────────────────────────────────
-const scriptSelect  = document.getElementById('script-select');
-const runBtn        = document.getElementById('run-btn');
-const promptEdit    = document.getElementById('prompt-edit');
-const refinerEdit   = document.getElementById('refiner-edit');
-const negativeEdit  = document.getElementById('negative-edit');
-const runOutput     = document.getElementById('run-output');
+const scriptSelect = document.getElementById('script-select');
+const runBtn       = document.getElementById('run-btn');
+const runOutput    = document.getElementById('run-output');
 
 let runPollTimer = null;
 let lastLineCount = 0;
-
-// Auto-height for all prompt textareas
-function autoHeight(ta) {
-  ta.style.height = 'auto';
-  ta.style.height = ta.scrollHeight + 'px';
-}
-[promptEdit, refinerEdit, negativeEdit].forEach(ta =>
-  ta.addEventListener('input', () => autoHeight(ta))
-);
-function resetPromptHeight() {
-  [promptEdit, refinerEdit, negativeEdit].forEach(ta => autoHeight(ta));
-}
+let jobQueue    = [];
+let activeJobId = null;
+let activeWord  = null;
 
 async function loadScripts() {
   try {
-    const res  = await fetch(`${SERVER}/api/scripts`);
+    const res  = await fetch(`${VOCAB_SERVER}/api/scripts`);
     const list = await res.json();
     scriptSelect.innerHTML = list.length
       ? list.map(s => `<option value="${s}">${s.replace('.py', '')}</option>`).join('')
       : '<option value="">No scripts found</option>';
-    // Restore last used script
     const saved = localStorage.getItem('imagen_last_script');
     if (saved && list.includes(saved)) scriptSelect.value = saved;
   } catch {
@@ -883,20 +250,15 @@ async function loadScripts() {
   }
 }
 
-// ── Job queue tracking ────────────────────────────────────────────────────────
-let jobQueue   = [];       // [{job_id, word}] not yet polling
-let activeJobId = null;    // currently polling job_id
-let activeWord  = null;    // word being generated for active job
-
 function addPlaceholderThumb(word, jobId) {
-  const sec = document.getElementById('alts-section');
+  const sec  = document.getElementById('alts-section');
   const grid = document.getElementById('alts-grid');
   sec.style.display = '';
   const thumb = document.createElement('div');
-  thumb.className = 'alt-thumb generating';
+  thumb.className  = 'alt-thumb generating';
   thumb.dataset.jobId = jobId;
   const label = document.createElement('div');
-  label.className = 'gen-label';
+  label.className  = 'gen-label';
   label.textContent = 'generating…';
   thumb.appendChild(label);
   grid.appendChild(thumb);
@@ -906,24 +268,31 @@ function removePlaceholderThumb(jobId) {
   document.querySelectorAll(`.alt-thumb.generating[data-job-id="${jobId}"]`).forEach(el => el.remove());
 }
 
+function appendLine(text, cls = '') {
+  const div = document.createElement('div');
+  if (cls) div.className = cls;
+  div.textContent = text;
+  runOutput.appendChild(div);
+  runOutput.scrollTop = runOutput.scrollHeight;
+}
+
 runBtn.addEventListener('click', async () => {
   if (!selectedWord || !scriptSelect.value) return;
-  const script  = scriptSelect.value;
-  const word    = selectedWord;
+  const script = scriptSelect.value;
+  const word   = selectedWord;
   localStorage.setItem('imagen_last_script', script);
-
   runOutput.classList.add('visible');
 
   try {
     const body = { script, words: [word] };
-    const base     = promptEdit.value.trim();
-    const refiner  = refinerEdit.value.trim();
-    const negative = negativeEdit.value.trim();
+    const base     = document.getElementById('prompt-edit').value.trim();
+    const refiner  = document.getElementById('refiner-edit').value.trim();
+    const negative = document.getElementById('negative-edit').value.trim();
     if (base)     body.prompt_base    = base;
     if (refiner)  body.prompt_refiner = refiner;
     if (negative) body.negative       = negative;
 
-    const res  = await fetch(`${SERVER}/api/run`, {
+    const res = await fetch(`${VOCAB_SERVER}/api/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -931,15 +300,12 @@ runBtn.addEventListener('click', async () => {
     const { job_id, queue_position, error } = await res.json();
     if (error) { appendLine(`Error: ${error}`, 'out-err'); return; }
 
-    // Add placeholder thumb immediately if this word is open
     if (word === selectedWord) addPlaceholderThumb(word, job_id);
-
     jobQueue.push({ job_id, word });
     if (queue_position > 0) {
       appendLine(`Queued "${word}" — position ${queue_position + 1} in queue`, 'out-done');
     }
     updateQueueIndicator();
-
     if (!activeJobId) advanceQueue();
   } catch {
     appendLine('Cannot reach server. Start it with: python server.py', 'out-err');
@@ -955,19 +321,11 @@ function advanceQueue() {
   pollJob(activeJobId);
 }
 
-function appendLine(text, cls = '') {
-  const div = document.createElement('div');
-  if (cls) div.className = cls;
-  div.textContent = text;
-  runOutput.appendChild(div);
-  runOutput.scrollTop = runOutput.scrollHeight;
-}
-
 function pollJob(job_id) {
   clearInterval(runPollTimer);
   runPollTimer = setInterval(async () => {
     try {
-      const res  = await fetch(`${SERVER}/api/status/${job_id}`);
+      const res  = await fetch(`${VOCAB_SERVER}/api/status/${job_id}`);
       const data = await res.json();
       const newLines = data.lines.slice(lastLineCount);
       newLines.forEach(line => {
@@ -981,15 +339,13 @@ function pollJob(job_id) {
       if (data.done) {
         clearInterval(runPollTimer);
         const ok = data.rc === 0;
-        appendLine(ok ? `✓ Done (exit 0)` : `✗ Exited with code ${data.rc}`, ok ? 'out-done' : 'out-err');
+        appendLine(ok ? '✓ Done (exit 0)' : `✗ Exited with code ${data.rc}`, ok ? 'out-done' : 'out-err');
 
-        // Reload vocab after successful job
         removePlaceholderThumb(job_id);
         if (ok) {
-          const resp = await fetch(`${SERVER}/api/vocab`);
+          const resp = await fetch(`${VOCAB_SERVER}/api/vocab`);
           if (resp.ok) {
             vocab = await resp.json();
-            // Switch to newly generated image if the word is still open
             if (activeWord && vocab[activeWord]) {
               const imgs = vocab[activeWord].images || [];
               const newest = imgs[imgs.length - 1]?.filename;
@@ -1000,7 +356,6 @@ function pollJob(job_id) {
           }
         }
 
-        // Advance to next queued job
         updateQueueIndicator();
         if (jobQueue.length > 0) {
           appendLine(`── Next job (${jobQueue.length} remaining) ──`, 'out-done');
@@ -1011,14 +366,14 @@ function pollJob(job_id) {
           activeWord  = null;
         }
       }
-    } catch { /* server busy */ }
+    } catch {}
   }, 800);
 }
 
-// ── Apply image to docs (shared helper) ──────────────────────────────────────
+// ── Apply image to docs ───────────────────────────────────────────────────────
 async function applyToDoc(word, filename, verbose = false) {
   try {
-    const res  = await fetch(`${SERVER}/api/apply`, {
+    const res  = await fetch(`${VOCAB_SERVER}/api/apply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ word, filename }),
@@ -1032,316 +387,12 @@ async function applyToDoc(word, filename, verbose = false) {
   } catch {
     if (verbose) {
       runOutput.classList.add('visible');
-      appendLine('Cannot reach server. Start it with: python imagegen/server.py', 'out-err');
+      appendLine('Cannot reach server.', 'out-err');
     }
   }
 }
 
-// ── Flag button ───────────────────────────────────────────────────────────────
-flagBtn.addEventListener('click', async () => {
-  if (!selectedWord) return;
-  const newVal = !isInRegen(selectedWord);
-  if (vocab[selectedWord]) vocab[selectedWord].flagged_for_regen = newVal;
-  flagBtn.classList.toggle('flagged', newVal);
-  renderWordList();
-  await updateWordField(selectedWord, { flagged_for_regen: newVal });
-});
-
-
-// ── Definition / translation save (#28) ──────────────────────────────────────
-defEdit.addEventListener('input', () => {
-  defEdit.style.height = 'auto';
-  defEdit.style.height = defEdit.scrollHeight + 'px';
-});
-defSaveBtn.addEventListener('click', async () => {
-  if (!selectedWord) return;
-  const def = defEdit.value.trim();
-  await updateWordField(selectedWord, { definition: def });
-  defSaveBtn.textContent = '✓';
-  setTimeout(() => { defSaveBtn.textContent = 'Save'; }, 1500);
-});
-
-transEdit.addEventListener('input', () => {
-  transEdit.style.height = 'auto';
-  transEdit.style.height = transEdit.scrollHeight + 'px';
-});
-transSaveBtn.addEventListener('click', async () => {
-  if (!selectedWord) return;
-  const nl = transEdit.value.trim();
-  const currentTrans = vocab[selectedWord]?.translation || {};
-  const newTrans = { ...currentTrans, nl };
-  await updateWordField(selectedWord, { translation: newTrans });
-  transSaveBtn.textContent = '✓';
-  setTimeout(() => { transSaveBtn.textContent = 'Save'; }, 1500);
-});
-
-// ── Sidebar collapse ──────────────────────────────────────────────────────────
-// The top panel has no explicit close button anymore; use the ui-toggle or
-// open-sidebar. We keep the hamburger for when sidebar is collapsed.
-openBtn.addEventListener('click', () => {
-  sidebar.classList.remove('collapsed');
-  openBtn.classList.remove('visible');
-});
-
-// ── Columns slider ────────────────────────────────────────────────────────────
-const savedCols = parseInt(localStorage.getItem('imagen_cols') || '4', 10);
-colsSlider.value = savedCols;
-colsLabel.textContent = savedCols;
-document.documentElement.style.setProperty('--cols', savedCols);
-
-colsSlider.addEventListener('input', () => {
-  const v = colsSlider.value;
-  colsLabel.textContent = v;
-  document.documentElement.style.setProperty('--cols', v);
-  localStorage.setItem('imagen_cols', v);
-});
-
-// ── Fullscreen ────────────────────────────────────────────────────────────────
-// fullscreenBtn.addEventListener('click', () => {
-//   const target = wordView.classList.contains('active') ? mainImageWrap : document.getElementById('main');
-//   if (!document.fullscreenElement) {
-//     target.requestFullscreen().catch(() => {});
-//   } else {
-//     document.exitFullscreen();
-//   }
-// });
-// document.addEventListener('fullscreenchange', () => {
-//   fullscreenBtn.textContent = document.fullscreenElement ? '✕' : '⛶';
-// });
-
-// ── Lightbox (click main image) ───────────────────────────────────────────────
-mainImageWrap.addEventListener('click', () => {
-  if (!mainImage.src) return;
-  lightboxImg.src = mainImage.src;
-  lightbox.classList.add('open');
-});
-lightbox.addEventListener('click', () => lightbox.classList.remove('open'));
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') lightbox.classList.remove('open');
-});
-
-// ── Search ───────────────────────────────────────────────────────────────────
-searchInput.addEventListener('input', () => filterWords(searchInput.value.trim().toLowerCase()));
-
-function filterWords(q) {
-  document.querySelectorAll('.word-item').forEach(el => {
-    el.style.display = !q || el.dataset.word.toLowerCase().includes(q) ? '' : 'none';
-  });
-  document.querySelectorAll('.gallery-card').forEach(el => {
-    el.classList.toggle('hidden', !!(q && !el.dataset.word.toLowerCase().includes(q)));
-  });
-}
-
-// ── Render sidebar word list ──────────────────────────────────────────────────
-function renderWordList() {
-  wordList.innerHTML = '';
-  Object.keys(vocab).sort((a, b) => a.localeCompare(b)).forEach(word => {
-    const data = vocab[word] || {};
-    const item = document.createElement('div');
-    item.className = 'word-item' + (word === selectedWord ? ' active' : '');
-    item.dataset.word = word;
-
-    const label = document.createElement('span');
-    label.textContent = data.word || word;
-    item.appendChild(label);
-
-    if (data.flagged_for_regen) {
-      const dot = document.createElement('div');
-      dot.className = 'regen-dot';
-      item.appendChild(dot);
-    } else if (hasUnseenImages(word)) {
-      const dot = document.createElement('div');
-      dot.className = 'new-dot';
-      item.appendChild(dot);
-    } else if (!data.default_image) {
-      const dot = document.createElement('div');
-      dot.className = 'no-default-dot';
-      item.appendChild(dot);
-    }
-    item.addEventListener('click', () => openWord(word));
-    wordList.appendChild(item);
-  });
-  const q = searchInput.value.trim().toLowerCase();
-  if (q) filterWords(q);
-}
-
-// ── Render gallery ────────────────────────────────────────────────────────────
-function renderGallery() {
-  gallery.innerHTML = '';
-  Object.keys(vocab).sort((a, b) => a.localeCompare(b)).forEach(word => {
-    const data = vocab[word] || {};
-    const def  = data.default_image || data.images?.[0]?.filename;
-    const card = document.createElement('div');
-    card.className = 'gallery-card';
-    card.dataset.word = word;
-
-    if (def) {
-      const img = document.createElement('img');
-      img.src = imgPath(word, def);
-      img.alt = word;
-      img.loading = 'lazy';
-      card.appendChild(img);
-    }
-    const lbl = document.createElement('div');
-    lbl.className = 'card-label';
-    lbl.textContent = data.word || word;
-    card.appendChild(lbl);
-
-    card.addEventListener('click', () => openWord(word));
-    gallery.appendChild(card);
-  });
-  const q = searchInput.value.trim().toLowerCase();
-  if (q) filterWords(q);
-}
-
-// ── Open word view ────────────────────────────────────────────────────────────
-function openWord(word) {
-  selectedWord = word;
-  const data   = vocab[word] || {};
-  const images = data.images || [];
-  const defImg = data.default_image || images[0]?.filename;
-
-  localStorage.setItem('imagen_open_word', word);
-  gallery.style.display = 'none';
-  wordView.classList.add('active');
-  setWordView(true);
-
-  document.querySelectorAll('.word-item').forEach(el => {
-    el.classList.toggle('active', el.dataset.word === word);
-  });
-
-  wordTitle.textContent = data.word || word;
-  flagBtn.classList.toggle('flagged', data.flagged_for_regen || false);
-
-  if (defImg) {
-    mainImage.src = imgPath(word, defImg);
-    mainImage.alt = word;
-  } else {
-    mainImage.src = '';
-    mainImage.alt = 'No image';
-  }
-
-  // Fill definition + translation editors
-  defEdit.value = data.definition || '';
-  defEdit.style.height = 'auto';
-  defEdit.style.height = defEdit.scrollHeight + 'px';
-  transEdit.value = data.translation?.nl || '';
-  transEdit.style.height = 'auto';
-  transEdit.style.height = transEdit.scrollHeight + 'px';
-
-  const defImgData = images.find(i => i.filename === defImg) || images[0] || {};
-  promptEdit.value   = defImgData.prompt_base    || '';
-  refinerEdit.value  = defImgData.prompt_refiner || '';
-  negativeEdit.value = defImgData.negative       || vocab[word]?.negative || '';
-  setTimeout(resetPromptHeight, 0);
-
-  // Alternatives grid
-  altsSection.style.display = images.length > 0 ? '' : 'none';
-  altsGrid.innerHTML = '';
-  images.forEach(img => {
-    const thumb = document.createElement('div');
-    thumb.className = 'alt-thumb' + (img.filename === defImg ? ' selected' : '');
-
-    const image = document.createElement('img');
-    image.src     = imgPath(word, img.filename);
-    image.alt     = img.filename;
-    image.loading = 'lazy';
-    thumb.appendChild(image);
-
-    const overlay = document.createElement('div');
-    overlay.className = 'alt-overlay';
-    overlay.textContent = img.filename.replace(`_${img.script}.png`, '');
-    thumb.appendChild(overlay);
-
-    // Approved toggle
-    const approveBtn = document.createElement('button');
-    approveBtn.className = 'approve-btn' + (img.approved ? ' approved' : '');
-    approveBtn.title = img.approved ? 'Approved' : 'Mark as approved';
-    approveBtn.textContent = '✓';
-    approveBtn.addEventListener('click', async e => {
-      e.stopPropagation();
-      img.approved = !img.approved;
-      approveBtn.classList.toggle('approved', img.approved);
-      approveBtn.title = img.approved ? 'Approved' : 'Mark as approved';
-      const updatedImages = (vocab[word]?.images || []).map(i =>
-        i.filename === img.filename ? { ...i, approved: img.approved } : i
-      );
-      if (vocab[word]) vocab[word].images = updatedImages;
-      await updateWordField(word, { images: updatedImages });
-    });
-    thumb.appendChild(approveBtn);
-
-    thumb.addEventListener('click', async () => {
-      if (vocab[word]) vocab[word].default_image = img.filename;
-      openWord(word);
-      renderWordList();
-      updateGalleryCard(word);
-      await updateWordField(word, { default_image: img.filename });
-      applyToDoc(word, img.filename);
-    });
-    altsGrid.appendChild(thumb);
-  });
-
-  // Mark images as seen, remove blue dot from sidebar
-  markImagesSeen(word);
-  document.querySelectorAll(`.word-item[data-word="${CSS.escape(word)}"] .new-dot`).forEach(d => d.remove());
-}
-
-function updateGalleryCard(word) {
-  const card = gallery.querySelector(`.gallery-card[data-word="${CSS.escape(word)}"]`);
-  if (!card) return;
-  const def = vocab[word]?.default_image || vocab[word]?.images?.[0]?.filename;
-  let img = card.querySelector('img');
-  if (def) {
-    if (!img) { img = document.createElement('img'); img.loading = 'lazy'; card.prepend(img); }
-    img.src = imgPath(word, def);
-  }
-}
-
-// ── View mode: swap back-btn / slider-wrap ────────────────────────────────────
-function setWordView(active) {
-  backBtn.style.display   = active ? 'flex' : 'none';
-  sliderWrap.style.display = active ? 'none' : 'flex';
-}
-setWordView(false); // start in gallery
-
-backBtn.addEventListener('click', () => {
-  selectedWord = null;
-  localStorage.removeItem('imagen_open_word');
-  wordView.classList.remove('active');
-  gallery.style.display = '';
-  setWordView(false);
-  document.querySelectorAll('.word-item').forEach(el => el.classList.remove('active'));
-});
-
-// ── UI toggle ─────────────────────────────────────────────────────────────────
-let uiVisible = true;
-uiToggle.addEventListener('click', () => {
-  uiVisible = !uiVisible;
-  document.body.classList.toggle('ui-hidden', !uiVisible);
-  uiToggle.textContent = uiVisible ? '⦿' : '●';
-  sidebar.classList.toggle('collapsed', !uiVisible);
-  openBtn.classList.toggle('visible', !uiVisible);
-});
-
-// ── Load vocab ────────────────────────────────────────────────────────────────
-async function loadVocab() {
-  try {
-    const resp = await fetch(`${SERVER}/api/vocab`);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    vocab = await resp.json();
-    errorMsg.style.display = 'none';
-    renderWordList();
-    renderGallery();
-    const saved = localStorage.getItem('imagen_open_word');
-    if (saved && vocab[saved]) openWord(saved);
-  } catch (e) {
-    errorMsg.style.display = 'block';
-    gallery.style.display  = 'none';
-    console.error('Failed to load vocab:', e);
-  }
-}
-
+// ── Boot ──────────────────────────────────────────────────────────────────────
 loadVocab();
 loadScripts();
 </script>

@@ -96,7 +96,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self) -> None:
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
@@ -149,6 +149,25 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self._json({"error": "not found"}, 404)
 
+    def do_DELETE(self) -> None:
+        path = urlparse(self.path).path
+        if path == "/api/word":
+            length = int(self.headers.get("Content-Length", 0))
+            body   = json.loads(self.rfile.read(length) or b"{}")
+            word   = (body.get("word") or "").strip().lower()
+            if not word:
+                self._json({"error": "word required"}, 400)
+                return
+            vocab = _read_vocab()
+            if word not in vocab:
+                self._json({"error": f"word not found: {word}"}, 404)
+                return
+            del vocab[word]
+            _write_vocab(vocab)
+            self._json({"ok": True})
+        else:
+            self._json({"error": "not found"}, 404)
+
     def do_POST(self) -> None:
         path = urlparse(self.path).path
         if path == "/api/apply":
@@ -156,6 +175,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/update-word":
             self._handle_update_word()
+            return
+        if path == "/api/add-word":
+            self._handle_add_word()
             return
         if path != "/api/run":
             self._json({"error": "not found"}, 404)
@@ -206,6 +228,31 @@ class Handler(BaseHTTPRequestHandler):
         _enqueue_job(job_id, script_path, words)
         pending = max(0, _job_queue.qsize() - 1)  # jobs behind this one
         self._json({"job_id": job_id, "queue_position": pending})
+
+    def _handle_add_word(self) -> None:
+        length = int(self.headers.get("Content-Length", 0))
+        body   = json.loads(self.rfile.read(length) or b"{}")
+        raw    = (body.get("word") or "").strip()
+        if not raw:
+            self._json({"error": "word required"}, 400)
+            return
+        key   = raw.lower()
+        vocab = _read_vocab()
+        if key in vocab:
+            self._json({"error": f"word already exists: {raw}"}, 409)
+            return
+        entry = {
+            "word":              raw,
+            "definition":        body.get("definition", ""),
+            "translation":       body.get("translation", {}),
+            "images":            [],
+            "default_image":     None,
+            "flagged_for_regen": False,
+            "enriched":          False,
+        }
+        vocab[key] = entry
+        _write_vocab(vocab)
+        self._json({"ok": True, "entry": entry})
 
     def _handle_update_word(self) -> None:
         length = int(self.headers.get("Content-Length", 0))
