@@ -185,8 +185,9 @@ The PWA and imagegen share a common UI layer: `docs/vocab.css` (styles) and `doc
 - **Word view** — default image, definition, Dutch translation, synonyms, antonyms (all editable via single pencil toggle). Occurrences grouped by book. Navigate with swipe left/right or ← → arrow keys.
 - **Unsaved changes** — navigating away while editing prompts Save / Discard / Cancel.
 - **Bottom bar** — glass pill (game | gallery | word) + UI toggle. Context row above shows mode-specific controls.
-- **Game mode** — four-choice flashcard quiz (definition or context sentence). Stats weighted so frequently failed words appear more often. Live score shown in context row.
+- **Game mode** — four-choice flashcard quiz with five modes selectable in the context row: **Random** (default, picks a viable mode each round), **Context** (definition or sentence → pick word), **Definitions** (word → pick definition), **Image** (image → pick word), **Dutch** (Dutch translation → pick word). Pool filtered per mode; stats weighted and shared across modes per word.
 - **Add word in game mode** — quick-add bar slides in below the game card; doesn't leave game mode.
+- **Word of the Day** — on open, if >1 hour since last shown, a modal displays the day's word with part of speech and definition. Word is deterministic per calendar date.
 - **Settings** — sync vocab, export vocab, reset game stats (gear icon in gallery context row).
 - **Add / delete word** — stored in localStorage only.
 - **Arrow keys** — navigate words in word view; ignored when focus is inside a text field.

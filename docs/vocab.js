@@ -914,17 +914,28 @@ if (createWordBtn) {
 }
 
 // ── Game mode ─────────────────────────────────────────────────────────────────
-let gameScore    = 0;
-let gameAttempts = 0;
-let gameResults  = {};
-let gameCurrent  = '';
-let gameAnswered = false;
-let gameRecentWords = [];
+let gameScore        = 0;
+let gameAttempts     = 0;
+let gameResults      = {};
+let gameCurrent      = '';
+let gameAnswered     = false;
+let gameRecentWords  = [];
+let gameMode         = 'random';  // 'random' | 'context' | 'reverse' | 'image' | 'dutch'
+let gameCurrentMode  = 'context'; // resolved mode frozen at round-start for gameGuess
+let gameCorrectValue = '';        // correct answer for current round
 const GAME_RECENT_CAP = 8;
 
 const gameNextBtn    = document.getElementById('game-next-btn');
 const gameScoreEl    = document.getElementById('game-score');
 const gameAttemptsEl = document.getElementById('game-attempts');
+const gameModeSelect = document.getElementById('game-mode-select');
+
+if (gameModeSelect) {
+  gameModeSelect.addEventListener('change', () => {
+    gameMode = gameModeSelect.value;
+    nextGameRound();
+  });
+}
 
 function initGameResults() {
   gameResults = {};
@@ -933,10 +944,16 @@ function initGameResults() {
   });
 }
 
-function gamePool() {
-  return Object.entries(vocab).filter(([, v]) => {
-    const hasContext = (v.occurrences || []).some(o => o.paragraph);
-    return v.definition || hasContext;
+function gamePool(mode) {
+  mode = mode ?? gameMode;
+  return Object.entries(vocab).filter(([k, v]) => {
+    switch (mode) {
+      case 'reverse': return !!v.definition;
+      case 'image':   return !!v.default_image;
+      case 'dutch':   return !!(v.translation?.nl);
+      case 'random':  return v.definition || (v.occurrences || []).some(o => o.paragraph);
+      default:        return v.definition || (v.occurrences || []).some(o => o.paragraph);
+    }
   });
 }
 
@@ -964,8 +981,18 @@ function weightedPick(pool) {
   return pool[pool.length - 1];
 }
 
-function pickDistractors(targetKey) {
+function pickDistractors(targetKey, mode) {
   const targetPos = vocab[targetKey]?.part_of_speech || '';
+  if (mode === 'reverse') {
+    // Return 3 definition strings from other words
+    const candidates = shuffle(Object.entries(vocab).filter(([k, v]) =>
+      k !== targetKey && !!v.definition
+    ));
+    const samePOS = candidates.filter(([, v]) => v.part_of_speech === targetPos);
+    const other   = candidates.filter(([, v]) => v.part_of_speech !== targetPos);
+    return [...samePOS, ...other].slice(0, 3).map(([, v]) => v.definition);
+  }
+  // Default: return 3 word strings
   const samePOS = shuffle(Object.entries(vocab).filter(([k, v]) =>
     k !== targetKey && v.part_of_speech === targetPos
   ));
@@ -978,8 +1005,7 @@ function pickDistractors(targetKey) {
 function gameEsc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-function gameEscAttr(s) { return String(s || '').replace(/'/g, '&#39;'); }
-function gameEscRe(s)   { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function gameEscRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
 function buildGameContext(key, reveal) {
   const v    = vocab[key] || {};
@@ -993,6 +1019,18 @@ function buildGameContext(key, reveal) {
   return para.replace(re, `<span class="game-blank">${gameEsc(word)}</span>`);
 }
 
+function buildChoiceButtons(choices, choicesEl) {
+  choicesEl.innerHTML = '';
+  shuffle(choices).forEach(value => {
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn';
+    btn.dataset.choice = value;
+    btn.textContent = value;
+    btn.addEventListener('click', () => gameGuess(value));
+    choicesEl.appendChild(btn);
+  });
+}
+
 function nextGameRound() {
   if (!gameView) return;
   const pool = gamePool();
@@ -1001,13 +1039,23 @@ function nextGameRound() {
   if (!clueTextEl || !choicesEl) return;
 
   if (pool.length < 4) {
-    clueTextEl.textContent = 'Not enough words with definitions or occurrences for the game.';
+    clueTextEl.textContent = 'Not enough words for this mode.';
     choicesEl.innerHTML = '';
     return;
   }
 
-  gameAnswered = false;
-  gameCurrent  = '';
+  gameAnswered     = false;
+  gameCurrent      = '';
+  gameCorrectValue = '';
+
+  // Resolve random mode: pick from modes that have enough words
+  if (gameMode === 'random') {
+    const modes = ['context', 'reverse', 'image', 'dutch'].filter(m => gamePool(m).length >= 4);
+    gameCurrentMode = modes[Math.floor(Math.random() * modes.length)] || 'context';
+  } else {
+    gameCurrentMode = gameMode;
+  }
+
   const solvedEl = document.getElementById('clue-solved-actions');
   const sourceEl = document.getElementById('clue-source');
   const poolEl   = document.getElementById('pool-label');
@@ -1022,30 +1070,58 @@ function nextGameRound() {
   gameRecentWords.push(key);
   if (gameRecentWords.length > GAME_RECENT_CAP) gameRecentWords.shift();
 
-  const word = data.word || key;
+  const word    = data.word || key;
   const labelEl = document.getElementById('clue-label');
 
-  if (data.definition) {
-    const pos = data.part_of_speech ? `<em>${gameEsc(data.part_of_speech)}</em> ` : '';
-    if (labelEl) labelEl.textContent = 'Which word matches this definition?';
-    clueTextEl.innerHTML = pos + gameEsc(data.definition);
-    if (sourceEl && data.example) {
-      sourceEl.textContent = `"${data.example.replace(new RegExp('\\b' + gameEscRe(word) + '\\b', 'gi'), '___')}"`;
+  switch (gameCurrentMode) {
+    case 'reverse': {
+      if (labelEl) labelEl.textContent = 'Which definition matches this word?';
+      const pos = data.part_of_speech ? ` — <em>${gameEsc(data.part_of_speech)}</em>` : '';
+      clueTextEl.innerHTML = `<strong class="game-word-clue">${gameEsc(word)}</strong>${pos}`;
+      gameCorrectValue = data.definition;
+      buildChoiceButtons([data.definition, ...pickDistractors(key, 'reverse')], choicesEl);
+      break;
     }
-  } else {
-    if (labelEl) labelEl.textContent = 'What word fits here?';
-    clueTextEl.innerHTML = buildGameContext(key, false);
-    const occs = (data.occurrences || []).filter(o => o.paragraph);
-    if (sourceEl) sourceEl.textContent = occs.length ? `— ${parseBookTitle(occs[0].book)}` : '';
+    case 'image': {
+      if (labelEl) labelEl.textContent = 'Which word matches this image?';
+      clueTextEl.innerHTML = '';
+      const img = document.createElement('img');
+      img.src = imgPath(key, data.default_image);
+      img.alt = '';
+      img.className = 'clue-image';
+      clueTextEl.appendChild(img);
+      gameCorrectValue = word;
+      buildChoiceButtons([word, ...pickDistractors(key, 'image')], choicesEl);
+      break;
+    }
+    case 'dutch': {
+      if (labelEl) labelEl.textContent = 'Which word matches this Dutch translation?';
+      clueTextEl.textContent = data.translation.nl;
+      gameCorrectValue = word;
+      buildChoiceButtons([word, ...pickDistractors(key, 'dutch')], choicesEl);
+      break;
+    }
+    default: { // context
+      if (data.definition) {
+        const pos = data.part_of_speech ? `<em>${gameEsc(data.part_of_speech)}</em> ` : '';
+        if (labelEl) labelEl.textContent = 'Which word matches this definition?';
+        clueTextEl.innerHTML = pos + gameEsc(data.definition);
+        if (sourceEl && data.example) {
+          sourceEl.textContent = `"${data.example.replace(new RegExp('\\b' + gameEscRe(word) + '\\b', 'gi'), '___')}"`;
+        }
+      } else {
+        if (labelEl) labelEl.textContent = 'What word fits here?';
+        clueTextEl.innerHTML = buildGameContext(key, false);
+        const occs = (data.occurrences || []).filter(o => o.paragraph);
+        if (sourceEl) sourceEl.textContent = occs.length ? `— ${parseBookTitle(occs[0].book)}` : '';
+      }
+      gameCorrectValue = word;
+      buildChoiceButtons([word, ...pickDistractors(key, 'context')], choicesEl);
+    }
   }
-
-  const distractors = pickDistractors(key);
-  choicesEl.innerHTML = shuffle([word, ...distractors]).map(w =>
-    `<button class="choice-btn" onclick="gameGuess('${gameEscAttr(w)}')">${gameEsc(w)}</button>`
-  ).join('');
 }
 
-function gameGuess(word) {
+function gameGuess(value) {
   if (gameAnswered) return;
   gameAnswered = true;
   gameAttempts++;
@@ -1054,7 +1130,7 @@ function gameGuess(word) {
 
   const currentData = vocab[gameCurrent] || {};
   const currentWord = currentData.word || gameCurrent;
-  const correct = word === currentWord;
+  const correct = value === gameCorrectValue;
 
   if (correct) gameScore++;
   if (gameScoreEl) gameScoreEl.textContent = gameScore;
@@ -1067,30 +1143,29 @@ function gameGuess(word) {
 
   document.querySelectorAll('.choice-btn').forEach(btn => {
     btn.disabled = true;
-    const t = btn.textContent.trim();
-    if (t === currentWord) btn.classList.add('correct');
-    else if (t === word && !correct) btn.classList.add('wrong');
+    if (btn.dataset.choice === gameCorrectValue) btn.classList.add('correct');
+    else if (btn.dataset.choice === value && !correct) btn.classList.add('wrong');
   });
 
   // Reveal answer
   const clueTextEl = document.getElementById('clue-text');
   const sourceEl   = document.getElementById('clue-source');
   if (clueTextEl) {
-    if (currentData.definition) {
-      const pos = currentData.part_of_speech ? `<em>${gameEsc(currentData.part_of_speech)}</em> ` : '';
-      const parts = [`<strong>${gameEsc(currentWord)}</strong> — ${pos}${gameEsc(currentData.definition)}`];
-      const ctx = buildGameContext(gameCurrent, true);
-      if (ctx) parts.push(`<span style="font-style:italic;color:var(--text-dim)">${ctx}</span>`);
-      clueTextEl.innerHTML = parts.join('<br><br>');
-      if (sourceEl && currentData.example) sourceEl.textContent = `"${currentData.example}"`;
-    } else {
-      clueTextEl.innerHTML = buildGameContext(gameCurrent, true);
-    }
+    const pos   = currentData.part_of_speech ? `<em>${gameEsc(currentData.part_of_speech)}</em> ` : '';
+    const parts = [`<strong>${gameEsc(currentWord)}</strong> — ${pos}${gameEsc(currentData.definition || '')}`];
+    const ctx   = buildGameContext(gameCurrent, true);
+    if (ctx) parts.push(`<span style="font-style:italic;color:var(--text-dim)">${ctx}</span>`);
+    clueTextEl.innerHTML = parts.join('<br><br>');
+    if (sourceEl && currentData.example) sourceEl.textContent = `"${currentData.example}"`;
   }
 
   const solvedEl = document.getElementById('clue-solved-actions');
   if (solvedEl) {
-    solvedEl.innerHTML = `<button onclick="openWord('${gameEscAttr(gameCurrent)}')">View card</button>`;
+    solvedEl.innerHTML = '';
+    const viewBtn = document.createElement('button');
+    viewBtn.textContent = 'View card';
+    viewBtn.addEventListener('click', () => openWord(gameCurrent));
+    solvedEl.appendChild(viewBtn);
   }
 }
 
@@ -1117,6 +1192,13 @@ document.addEventListener('keydown', e => {
 });
 
 // ── Vocab loading ─────────────────────────────────────────────────────────────
+function wotdKeyForDate(dateStr) {
+  const keys = Object.keys(vocab).sort();
+  if (!keys.length) return null;
+  const hash = [...dateStr].reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  return keys[hash % keys.length];
+}
+
 function initAfterVocabLoad() {
   const errorMsg = document.getElementById('error-msg');
   if (errorMsg) errorMsg.style.display = 'none';
@@ -1124,6 +1206,7 @@ function initAfterVocabLoad() {
   renderGallery();
   const saved = localStorage.getItem('imagen_open_word');
   if (saved && vocab[saved]) openWord(saved);
+  if (typeof onVocabReady === 'function') onVocabReady();
 }
 
 // Default loadVocab: fetch vocab.json, fall back to vocab_public.json, then localStorage.

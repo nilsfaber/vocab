@@ -120,7 +120,9 @@ Both imagegen and the PWA share the same bottom bar design: a **glass context ro
 - **Word list**: all words from vocab.json shown. Red dot = no default set; orange dot = flagged for regen; blue dot = has new unseen images.
 - **Navigation**: swipe left/right anywhere in the main area, or press ← → arrow keys when a word is open. No visible prev/next buttons.
 - **Unsaved changes guard**: navigating away while editing shows a modal with Save / Discard / Cancel.
-- **Context row**: shows live score when in game mode; columns slider in gallery mode; queue indicator (jobs running/queued) in word mode.
+- **Context row**: shows live score when in game mode (with mode selector); columns slider in gallery mode; queue indicator (jobs running/queued) in word mode.
+- **Game modes**: Random (default, picks a viable mode each round), Context (definition/sentence → pick word), Definitions (word → pick definition), Image (image → pick word), Dutch (translation → pick word). Pool filtered per mode; stats shared across modes per word.
+- **Word of the Day** (PWA only): on app open, if >1 hour since last shown, displays a modal with the day's word, part of speech, and definition. Word is deterministic per calendar date.
 - **Selecting an alternative image** automatically applies it as the default AND writes it to `docs/images/<word>.png` (via pngquant if available). default_image is persisted in `docs/vocab.json` via the server API.
 - **Word info panel** — single glass card split by a vertical divider. Left side: word title, delete button, pencil/save toggle, definition textarea. Right side: inline rows for Dutch translation, Synonyms, Antonyms. The pencil button in the title bar toggles edit mode for all fields at once (icon switches pencil↔check); all fields save in one API call on confirm.
 - **Flag button** (⚑) in word title bar (imagegen only) — toggles regen flag in vocab.json.
@@ -188,20 +190,6 @@ Update `README.md` whenever functionality changes — new features, changed comm
 ---
 
 ## Backlog
-
-### medium priority
-
-#### 16 — More game modes
-- **16a** — Reverse: word shown, player picks correct definition from multiple choice.
-- **16b** — Image mode: image shown, player guesses the word.
-- **16c** — Use Dutch translation as an alternative prompt.
-
-
-#### 24 - word of the day concept
-setting to have a word of the day pop up in a modal window when you open the page at a set interval, ie if it has been longer than an hour since you opened the app that day, the word of the day is shown. simple model, just word and definition in a lightbox
-
-
-
 
 ### low priority
 #### 10 — File import/export

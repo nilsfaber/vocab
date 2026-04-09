@@ -42,6 +42,13 @@
 <div id="panel-controls">
   <div id="context-row">
     <div id="ctx-game" class="ctx-panel">
+      <select id="game-mode-select" title="Game mode">
+        <option value="random">Random</option>
+        <option value="context">Context</option>
+        <option value="reverse">Definitions</option>
+        <option value="image">Image</option>
+        <option value="dutch">Dutch</option>
+      </select>
       <span id="pool-label"></span>
       Score: <strong id="game-score">0</strong> / <strong id="game-attempts">0</strong>
     </div>
@@ -165,6 +172,17 @@
   </div>
 </div>
 
+<!-- Word of the Day modal -->
+<div id="wotd-modal">
+  <div id="wotd-modal-box">
+    <div id="wotd-label">Word of the day</div>
+    <div id="wotd-word"></div>
+    <div id="wotd-pos"></div>
+    <div id="wotd-def"></div>
+    <button id="wotd-close-btn">Got it</button>
+  </div>
+</div>
+
 <!-- Unsaved changes modal -->
 <div id="unsaved-modal">
   <div id="unsaved-modal-box">
@@ -259,6 +277,33 @@ document.getElementById('reset-stats-btn').addEventListener('click', () => {
   saveVocabToStorage();
   settingsModal.classList.remove('open');
   showSyncStatus('Game stats reset');
+});
+
+// ── Word of the Day ───────────────────────────────────────────────────────────
+const wotdModal    = document.getElementById('wotd-modal');
+const wotdWordEl   = document.getElementById('wotd-word');
+const wotdPosEl    = document.getElementById('wotd-pos');
+const wotdDefEl    = document.getElementById('wotd-def');
+const wotdCloseBtn = document.getElementById('wotd-close-btn');
+const WOTD_INTERVAL = 60 * 60 * 1000; // 1 hour
+
+function onVocabReady() {
+  const last = parseInt(localStorage.getItem('wotd_last') || '0', 10);
+  if (Date.now() - last < WOTD_INTERVAL) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const key   = wotdKeyForDate(today);
+  if (!key) return;
+  const data  = vocab[key] || {};
+  if (wotdWordEl) wotdWordEl.textContent = data.word || key;
+  if (wotdPosEl)  wotdPosEl.textContent  = data.part_of_speech || '';
+  if (wotdDefEl)  wotdDefEl.textContent  = data.definition || '';
+  if (wotdModal)  wotdModal.classList.add('open');
+  localStorage.setItem('wotd_last', String(Date.now()));
+}
+
+if (wotdCloseBtn) wotdCloseBtn.addEventListener('click', () => wotdModal.classList.remove('open'));
+if (wotdModal) wotdModal.addEventListener('click', e => {
+  if (e.target === wotdModal) wotdModal.classList.remove('open');
 });
 
 // ── Service worker ────────────────────────────────────────────────────────────
