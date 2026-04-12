@@ -191,14 +191,8 @@ Update `README.md` whenever functionality changes — new features, changed comm
 ## Backlog
 
 ### low priority
-
-#### 2 — Local vocab.sqlite3 fallback
-- **2a** — Detect no device connected, show fallback UI.
-- **2b** — Read local `vocab.sqlite3` directly in browser via sql.js.
-
 #### 17 — Predict unknown words
 Analyse library text to suggest words the user likely doesn't know.
-
 
 #### 25 - check readme and claude for skiffy project
 discuss how this could be integrated in this project

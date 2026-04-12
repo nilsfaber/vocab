@@ -22,9 +22,6 @@
       <option value="occurrences">Occurrences</option>
       <option value="score">Score</option>
     </select>
-    <button id="add-word-btn">
-      <svg class="icon"><use href="/docs/icons.svg#icon-plus"/></svg> Add word
-    </button>
   </div>
 </nav>
 
@@ -46,24 +43,30 @@
       <button class="ctx-btn icon-only" id="settings-btn" title="Settings">
         <svg class="icon"><use href="/docs/icons.svg#icon-settings"/></svg>
       </button>
-      <button class="ctx-btn icon-only" id="import-btn" title="Import vocab_export.json">
-        <svg class="icon"><use href="/docs/icons.svg#icon-upload"/></svg>
+      <button class="ctx-btn icon-only" id="add-word-btn" title="Add word">
+        <svg class="icon"><use href="/docs/icons.svg#icon-plus"/></svg>
       </button>
-      <input id="import-file" type="file" accept=".json" style="display:none">
-      <svg class="icon"><use href="/docs/icons.svg#icon-columns"/></svg>
-      <input id="cols-slider" type="range" min="1" max="8" step="1" value="4" title="Gallery columns">
-      <span id="cols-label">4</span>
+      <button class="ctx-btn" id="cols-btn" title="Columns">
+        <svg class="icon"><use href="/docs/icons.svg#icon-columns"/></svg>
+        <span id="cols-label">4</span>
+      </button>
     </div>
     <div id="ctx-word" class="ctx-panel">
+      <button class="ctx-btn" id="ctx-prev-btn" title="Previous word">
+        <svg class="icon"><use href="/docs/icons.svg#icon-arrow-left"/></svg>
+      </button>
       <span id="queue-indicator">
         <svg class="icon"><use href="/docs/icons.svg#icon-loader"/></svg>
         <span id="queue-count">0</span> queued
       </span>
+      <button class="ctx-btn" id="ctx-next-btn" title="Next word">
+        <svg class="icon"><use href="/docs/icons.svg#icon-arrow-right"/></svg>
+      </button>
     </div>
   </div>
   <div id="control-row">
     <button id="ui-toggle" title="Toggle UI">
-      <svg class="icon icon-lg"><use href="/docs/icons.svg#icon-eye"/></svg>
+      <svg class="icon icon-lg"><use href="/docs/icons.svg#icon-circle-outline"/></svg>
     </button>
     <div id="view-pill">
       <button class="pill-btn" id="pill-game" title="Game mode">
@@ -72,7 +75,7 @@
       <button class="pill-btn active" id="pill-gallery" title="Gallery">
         <svg class="icon icon-lg"><use href="/docs/icons.svg#icon-grid"/></svg>
       </button>
-      <button class="pill-btn" id="pill-word" title="Word view" disabled>
+      <button class="pill-btn" id="pill-word" title="Word view">
         <svg class="icon icon-lg"><use href="/docs/icons.svg#icon-book"/></svg>
       </button>
     </div>
@@ -118,11 +121,20 @@
     </div>
     <div id="main-image-wrap">
       <img id="main-image" src="" alt="">
+      <div id="no-image-placeholder">
+        <svg class="icon no-image-icon"><use href="/docs/icons.svg#icon-image"/></svg>
+      </div>
     </div>
     <div id="word-info-panel">
       <div id="word-info-left">
         <div id="word-title-bar">
-          <div id="word-title"></div>
+          <div id="word-title-group">
+            <div id="word-title"></div>
+            <div id="word-phonetic"></div>
+          </div>
+          <button id="learnt-btn" class="icon-action-btn" title="Mark as learnt">
+            <svg class="icon"><use href="/docs/icons.svg#icon-star"/></svg>
+          </button>
           <button id="flag-btn" class="icon-action-btn" title="Flag for regeneration">
             <svg class="icon"><use href="/docs/icons.svg#icon-flag"/></svg>
           </button>
@@ -131,6 +143,7 @@
           </button>
         </div>
         <textarea id="def-edit" spellcheck="false" placeholder="No definition…" rows="3"></textarea>
+        <div id="definitions-list"></div>
       </div>
       <div id="word-info-right">
         <div class="info-row">
@@ -145,6 +158,7 @@
           <span class="info-row-label">Antonyms</span>
           <input id="ants-edit" type="text" placeholder="—" spellcheck="false">
         </div>
+        <div id="stats-rows"></div>
       </div>
     </div>
 
@@ -181,9 +195,21 @@
 <div id="settings-modal">
   <div id="settings-modal-box">
     <div id="settings-modal-title">Settings</div>
+    <div class="theme-row">
+      <span class="theme-row-label">Theme</span>
+      <div class="theme-btns">
+        <button class="theme-btn" data-theme="dark">Dark</button>
+        <button class="theme-btn" data-theme="light">Light</button>
+        <button class="theme-btn" data-theme="epaper">E-paper</button>
+      </div>
+    </div>
     <button class="modal-action" id="export-btn" title="Export vocabulary as JSON">
       <svg class="icon"><use href="/docs/icons.svg#icon-download"/></svg> Export vocabulary
     </button>
+    <button class="modal-action" id="import-btn" title="Import vocab_export.json">
+      <svg class="icon"><use href="/docs/icons.svg#icon-upload"/></svg> Import vocabulary
+    </button>
+    <input id="import-file" type="file" accept=".json" style="display:none">
     <button id="reset-stats-btn">Reset game stats</button>
     <button id="settings-close-btn">Close</button>
   </div>
@@ -437,7 +463,7 @@ document.getElementById('reset-stats-btn').addEventListener('click', async () =>
 const importBtn  = document.getElementById('import-btn');
 const importFile = document.getElementById('import-file');
 
-importBtn.addEventListener('click', () => importFile.click());
+importBtn.addEventListener('click', () => { settingsModal.classList.remove('open'); importFile.click(); });
 
 importFile.addEventListener('change', async () => {
   const file = importFile.files[0];

@@ -13,7 +13,8 @@ let ICON_BASE    = '';     // imagegen sets: '/docs/' (absolute path via server.
 
 // ── Data model ────────────────────────────────────────────────────────────────
 let vocab = {};           // object keyed by lowercase word
-let selectedWord = null;
+let selectedWord   = null;
+let lastOpenedWord = null;
 
 function getDefault(word) { return vocab[word]?.default_image || vocab[word]?.images?.[0]?.filename || null; }
 function hasDefault(word)  { return !!vocab[word]?.default_image; }
@@ -112,7 +113,7 @@ const sidebar        = document.getElementById('sidebar');
 const openBtn        = document.getElementById('open-sidebar');
 const searchInput    = document.getElementById('search');
 const wordList       = document.getElementById('word-list');
-const colsSlider     = document.getElementById('cols-slider');
+const colsBtn        = document.getElementById('cols-btn');
 const colsLabel      = document.getElementById('cols-label');
 const gallery        = document.getElementById('gallery');
 const wordView       = document.getElementById('word-view');
@@ -122,10 +123,15 @@ const mainImage      = document.getElementById('main-image');
 const altsSection    = document.getElementById('alts-section');
 const altsGrid       = document.getElementById('alts-grid');
 const flagBtn        = document.getElementById('flag-btn');
+const learntBtn      = document.getElementById('learnt-btn');
+const wordPhonetic   = document.getElementById('word-phonetic');
+const definitionsList = document.getElementById('definitions-list');
+const statsRows      = document.getElementById('stats-rows');
 const defEdit        = document.getElementById('def-edit');
 const transEdit      = document.getElementById('trans-edit');
 const synsEdit       = document.getElementById('syns-edit');
 const antsEdit       = document.getElementById('ants-edit');
+const addWordBtn     = document.getElementById('add-word-btn');
 const uiToggle       = document.getElementById('ui-toggle');
 const lightbox       = document.getElementById('lightbox');
 const lightboxImg    = document.getElementById('lightbox-img');
@@ -156,7 +162,7 @@ function wordScore(data) {
 
 function sortedWords() {
   const mode = sortSelect.value;
-  const keys = Object.keys(vocab);
+  const keys = Object.keys(vocab).filter(k => !vocab[k]?.deleted);
   switch (mode) {
     case 'date':
       return keys.sort((a, b) => {
@@ -355,6 +361,7 @@ function resetPromptHeight() {
 function openWord(word) {
   if (typeof isNewWordMode !== 'undefined' && isNewWordMode) exitNewWordMode();
   selectedWord = word;
+  lastOpenedWord = word;
   const data   = vocab[word] || {};
   const images = data.images || [];
   const defImg = data.default_image || images[0]?.filename;
@@ -362,20 +369,25 @@ function openWord(word) {
   localStorage.setItem('imagen_open_word', word);
   sidebar.classList.remove('searching');
   setViewMode('word');
+  wordView.scrollTop = 0;
 
   document.querySelectorAll('.word-item').forEach(el => {
     el.classList.toggle('active', el.dataset.word === word);
   });
 
   if (wordTitle) wordTitle.textContent = data.word || word;
+  if (wordPhonetic) wordPhonetic.textContent = data.phonetic || '';
   if (flagBtn) flagBtn.classList.toggle('flagged', data.flagged_for_regen || false);
+  if (learntBtn) learntBtn.classList.toggle('learnt', data.learnt || false);
 
   if (defImg) {
     mainImage.src = imgPath(word, defImg);
     mainImage.alt = word;
+    mainImageWrap?.classList.remove('no-image');
   } else {
     mainImage.src = '';
-    mainImage.alt = 'No image';
+    mainImage.alt = '';
+    mainImageWrap?.classList.add('no-image');
   }
 
   // Fill definition + translation
@@ -385,6 +397,55 @@ function openWord(word) {
   if (antsEdit)  antsEdit.value  = (data.antonyms || []).join(', ');
   // Reset word info edit state
   resetWordInfoEdit();
+
+  // Render full definitions list
+  if (definitionsList) {
+    definitionsList.innerHTML = '';
+    (data.definitions || []).forEach(d => {
+      const entry = document.createElement('div');
+      entry.className = 'def-entry';
+      const pos  = document.createElement('span');
+      pos.className = 'def-pos';
+      pos.textContent = d.part_of_speech;
+      const text = document.createElement('span');
+      text.className = 'def-text';
+      text.textContent = d.definition;
+      entry.appendChild(pos);
+      entry.appendChild(text);
+      if (d.example) {
+        const ex = document.createElement('div');
+        ex.className = 'def-example';
+        ex.textContent = `"${d.example}"`;
+        entry.appendChild(ex);
+      }
+      definitionsList.appendChild(entry);
+    });
+  }
+
+  // Render per-mode stats
+  if (statsRows) {
+    statsRows.innerHTML = '';
+    const s = data.stats || {};
+    const modes = [
+      { key: 'context',  label: 'Context' },
+      { key: 'reverse',  label: 'Definitions' },
+      { key: 'image',    label: 'Image' },
+      { key: 'dutch',    label: 'Dutch' },
+    ];
+    const active = modes.filter(m => s[m.key]?.correct || s[m.key]?.wrong);
+    active.forEach(({ key, label }) => {
+      const ms = s[key];
+      const total = (ms.correct || 0) + (ms.wrong || 0);
+      const pct = total ? Math.round(100 * ms.correct / total) : 0;
+      const row = document.createElement('div');
+      row.className = 'info-row stats-row';
+      row.innerHTML = `<span class="info-row-label">${label}</span>
+        <span class="stats-bar-wrap"><span class="stats-bar" style="width:${pct}%"></span></span>
+        <span class="stats-pct">${pct}%</span>
+        <span class="stats-counts">${ms.correct}/${total}</span>`;
+      statsRows.appendChild(row);
+    });
+  }
 
   // Fill prompt textareas (imagegen only)
   if (promptEdit || refinerEdit || negativeEdit) {
@@ -438,6 +499,7 @@ function setViewMode(mode) {
   gallery.style.display = mode === 'gallery' ? '' : 'none';
   wordView.classList.toggle('active', mode === 'word');
   if (gameView) gameView.classList.toggle('active', mode === 'game');
+  if (addWordBtn) addWordBtn.style.display = mode === 'gallery' ? '' : 'none';
 
   // Context row
   [ctxGame, ctxGallery, ctxWord].forEach(p => p?.classList.remove('active'));
@@ -450,7 +512,6 @@ function setViewMode(mode) {
   if (pillGallery) pillGallery.classList.toggle('active', mode === 'gallery');
   if (pillWord) {
     pillWord.classList.toggle('active', mode === 'word');
-    pillWord.disabled = !selectedWord;
   }
 }
 function setWordView(active) { setViewMode(active ? 'word' : 'gallery'); }
@@ -545,13 +606,16 @@ if (pillGame) pillGame.addEventListener('click', () => {
   selectedWord = null;
   localStorage.removeItem('imagen_open_word');
   document.querySelectorAll('.word-item').forEach(el => el.classList.remove('active'));
-  initGameResults();
-  gameScore = gameAttempts = 0;
-  if (gameScoreEl)    gameScoreEl.textContent = '0';
-  if (gameAttemptsEl) gameAttemptsEl.textContent = '0';
-  gameRecentWords = [];
   setViewMode('game');
-  nextGameRound();
+  // Only start a fresh round if there is no active challenge
+  if (!gameCurrent) {
+    initGameResults();
+    gameScore = gameAttempts = 0;
+    if (gameScoreEl)    gameScoreEl.textContent = '0';
+    if (gameAttemptsEl) gameAttemptsEl.textContent = '0';
+    gameRecentWords = [];
+    nextGameRound();
+  }
 });
 if (pillGallery) pillGallery.addEventListener('click', () => {
   if (typeof isNewWordMode !== 'undefined' && isNewWordMode) exitNewWordMode();
@@ -561,7 +625,11 @@ if (pillGallery) pillGallery.addEventListener('click', () => {
   setViewMode('gallery');
 });
 if (pillWord) pillWord.addEventListener('click', () => {
-  if (selectedWord) setViewMode('word');
+  if (selectedWord) { setViewMode('word'); return; }
+  const target = lastOpenedWord && vocab[lastOpenedWord]
+    ? lastOpenedWord
+    : sortedWords()[0];
+  if (target) openWord(target);
 });
 
 function parseList(val) {
@@ -590,6 +658,18 @@ function resetWordInfoEdit() {
   _saveTimer = null;
 }
 
+// ── Learnt toggle ─────────────────────────────────────────────────────────────
+if (learntBtn) {
+  learntBtn.addEventListener('click', async () => {
+    if (!selectedWord) return;
+    const newVal = !vocab[selectedWord]?.learnt;
+    if (vocab[selectedWord]) vocab[selectedWord].learnt = newVal;
+    learntBtn.classList.toggle('learnt', newVal);
+    renderWordList();
+    await updateWordField(selectedWord, { learnt: newVal });
+  });
+}
+
 // ── Flag button (imagegen only) ───────────────────────────────────────────────
 if (flagBtn) {
   flagBtn.addEventListener('click', async () => {
@@ -610,18 +690,34 @@ if (openBtn) {
   });
 }
 
-// ── Columns slider ────────────────────────────────────────────────────────────
-if (colsSlider) {
-  const savedCols = parseInt(localStorage.getItem('imagen_cols') || '4', 10);
-  colsSlider.value = savedCols;
-  if (colsLabel) colsLabel.textContent = savedCols;
-  document.documentElement.style.setProperty('--cols', savedCols);
+// ── Theme ─────────────────────────────────────────────────────────────────────
+const THEME_KEY = 'vocab_theme';
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t || 'dark';
+  localStorage.setItem(THEME_KEY, t || 'dark');
+  document.querySelectorAll('.theme-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.theme === (t || 'dark'))
+  );
+}
+applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.theme-btn');
+  if (btn?.dataset.theme) applyTheme(btn.dataset.theme);
+});
 
-  colsSlider.addEventListener('input', () => {
-    const v = colsSlider.value;
-    if (colsLabel) colsLabel.textContent = v;
-    document.documentElement.style.setProperty('--cols', v);
-    localStorage.setItem('imagen_cols', v);
+// ── Columns slider ────────────────────────────────────────────────────────────
+const COLS_CYCLE = [1, 2, 3, 4];
+let currentCols = parseInt(localStorage.getItem('imagen_cols') || '4', 10);
+if (!COLS_CYCLE.includes(currentCols)) currentCols = 4;
+if (colsLabel) colsLabel.textContent = currentCols;
+document.documentElement.style.setProperty('--cols', currentCols);
+
+if (colsBtn) {
+  colsBtn.addEventListener('click', () => {
+    currentCols = COLS_CYCLE[(COLS_CYCLE.indexOf(currentCols) + 1) % COLS_CYCLE.length];
+    if (colsLabel) colsLabel.textContent = currentCols;
+    document.documentElement.style.setProperty('--cols', currentCols);
+    localStorage.setItem('imagen_cols', currentCols);
   });
 }
 
@@ -664,7 +760,7 @@ if (uiToggle) {
   uiToggle.addEventListener('click', () => {
     uiVisible = !uiVisible;
     document.body.classList.toggle('ui-hidden', !uiVisible);
-    const eyeIcon = uiVisible ? 'icon-eye' : 'icon-circle';
+    const eyeIcon = uiVisible ? 'icon-circle-outline' : 'icon-circle';
     uiToggle.innerHTML = `<svg class="icon icon-lg"><use href="${ICON_BASE}icons.svg#${eyeIcon}"/></svg>`;
     sidebar.classList.toggle('collapsed', !uiVisible);
     if (openBtn) openBtn.classList.toggle('visible', !uiVisible);
@@ -713,7 +809,6 @@ if (confirmDeleteBtn) {
 
 // ── Add word ──────────────────────────────────────────────────────────────────
 let isNewWordMode = false;
-const addWordBtn    = document.getElementById('add-word-btn');
 const newWordBar    = document.getElementById('new-word-bar');
 const newWordInput  = document.getElementById('new-word-input');
 const createWordBtn = document.getElementById('create-word-btn');
@@ -729,7 +824,9 @@ function openNewWordMode() {
   if (ctxGame)    ctxGame.classList.remove('active');
   if (ctxGallery) ctxGallery.classList.remove('active');
   if (newWordBar) newWordBar.classList.add('visible');
-  if (wordTitle)  wordTitle.textContent = '';
+  if (wordTitle)    wordTitle.textContent    = '';
+  if (wordPhonetic) wordPhonetic.textContent = '';
+  if (definitionsList) definitionsList.innerHTML = '';
   mainImage.src  = '';
   mainImage.alt  = '';
   if (defEdit)   defEdit.value   = '';
@@ -843,14 +940,11 @@ if (gameModeSelect) {
 
 function initGameResults() {
   gameResults = {};
-  Object.entries(vocab).forEach(([k, v]) => {
-    if (v.stats) gameResults[k] = { ...v.stats };
-  });
 }
 
 function gamePool(mode) {
   mode = mode ?? gameMode;
-  return Object.entries(vocab).filter(([k, v]) => {
+  return Object.entries(vocab).filter(([, v]) => {
     switch (mode) {
       case 'reverse': return !!v.definition;
       case 'image':   return !!v.default_image;
@@ -1039,9 +1133,14 @@ function gameGuess(value) {
   if (correct) gameScore++;
   if (gameScoreEl) gameScoreEl.textContent = gameScore;
 
-  const r = gameResults[gameCurrent] = gameResults[gameCurrent] || { correct: 0, wrong: 0 };
-  r[correct ? 'correct' : 'wrong']++;
-  const stats = { correct: r.correct, wrong: r.wrong };
+  // Per-mode stats
+  const existing = vocab[gameCurrent]?.stats || {};
+  const mode = gameCurrentMode;
+  const modeStats = existing[mode] || { correct: 0, wrong: 0 };
+  modeStats[correct ? 'correct' : 'wrong']++;
+  const total = existing.total || { correct: 0, wrong: 0 };
+  total[correct ? 'correct' : 'wrong']++;
+  const stats = { ...existing, [mode]: modeStats, total };
   if (vocab[gameCurrent]) vocab[gameCurrent].stats = stats;
   updateWordField(gameCurrent, { stats });
 
@@ -1070,6 +1169,18 @@ function gameGuess(value) {
     viewBtn.textContent = 'View card';
     viewBtn.addEventListener('click', () => openWord(gameCurrent));
     solvedEl.appendChild(viewBtn);
+    if (correct && !vocab[gameCurrent]?.learnt) {
+      const learnBtn = document.createElement('button');
+      learnBtn.textContent = '★ Mark as learnt';
+      learnBtn.addEventListener('click', async () => {
+        if (vocab[gameCurrent]) vocab[gameCurrent].learnt = true;
+        await updateWordField(gameCurrent, { learnt: true });
+        learnBtn.textContent = '✓ Learnt';
+        learnBtn.disabled = true;
+        if (learntBtn) learntBtn.classList.add('learnt');
+      });
+      solvedEl.appendChild(learnBtn);
+    }
   }
 }
 
@@ -1094,6 +1205,12 @@ document.addEventListener('keydown', e => {
     if (e.key === 'ArrowRight') { e.preventDefault(); navigateNext(); }
   }
 });
+
+// ── Ctx-word prev/next buttons ────────────────────────────────────────────────
+const ctxPrevBtn = document.getElementById('ctx-prev-btn');
+const ctxNextBtn = document.getElementById('ctx-next-btn');
+if (ctxPrevBtn) ctxPrevBtn.addEventListener('click', navigatePrev);
+if (ctxNextBtn) ctxNextBtn.addEventListener('click', navigateNext);
 
 // ── Vocab loading ─────────────────────────────────────────────────────────────
 function wotdKeyForDate(dateStr) {

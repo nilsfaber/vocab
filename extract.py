@@ -7,7 +7,6 @@ import re
 import time
 import zipfile
 import urllib.request
-from html.parser import HTMLParser
 
 
 
@@ -38,7 +37,7 @@ def _progress(current, total, label="", width=40):
     if current == total:
         sys.stdout.write("\n")
 
-ADB = "C:/git/platform-tools/adb.exe"
+ADB = "C:/git/platform-tools/adb.exe" if os.name == "nt" else "adb"
 REMOTE_BASE = "/sdcard"
 KOREADER_PATH = f"{REMOTE_BASE}/koreader/settings"
 DB_NAME = "vocabulary_builder.sqlite3"
@@ -46,11 +45,65 @@ LOCAL_DB = "data/vocab.sqlite3"
 BOOKS_DIR = "data/books"
 APP_DIR   = "docs"
 
+HARDCOVER_URL   = "https://api.hardcover.app/v1/graphql"
+HARDCOVER_TOKEN = os.environ.get("HARDCOVER_TOKEN", "")
+
+_READ_BOOKS_QUERY = """
+query MyReadBooks {
+  me {
+    user_books(where: {status_id: {_eq: 3}}) {
+      book {
+        title
+        contributions { author { name } }
+      }
+    }
+  }
+}
+"""
+
+def _normalize_title(title: str) -> str:
+    t = title.lower().strip()
+    for prefix in ("the ", "a ", "an "):
+        if t.startswith(prefix):
+            t = t[len(prefix):]
+    return re.sub(r"[^\w\s]", "", t).strip()
+
+
+def fetch_read_books() -> tuple:
+    """Return (normalised_titles, api_ok).
+    api_ok=True only when token is present and the request succeeded."""
+    if not HARDCOVER_TOKEN:
+        return set(), False
+    try:
+        payload = json.dumps({"query": _READ_BOOKS_QUERY}).encode()
+        req = urllib.request.Request(
+            HARDCOVER_URL, data=payload,
+            headers={"Authorization": f"Bearer {HARDCOVER_TOKEN}",
+                     "Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+        me = data.get("data", {}).get("me", {})
+        if isinstance(me, list):
+            me = me[0] if me else {}
+        user_books = me.get("user_books", [])
+        titles = {_normalize_title(ub["book"]["title"])
+                  for ub in user_books if ub.get("book", {}).get("title")}
+        return titles, True
+    except Exception as e:
+        _log(f"⚠ Hardcover API error: {e}")
+        return set(), False
+
 
 def run_adb(args):
-    result = subprocess.run([ADB] + args, capture_output=True, text=True)
+    try:
+        result = subprocess.run([ADB] + args, capture_output=True, text=True)
+    except FileNotFoundError:
+        print(f"❌ adb not found: '{ADB}'\n   Install it with: sudo apt install adb")
+        sys.exit(1)
     if result.returncode != 0:
-        print("ADB error:", result.stderr)
+        detail = (result.stderr or result.stdout or "").strip()
+        print(f"❌ ADB error (exit {result.returncode}): {detail or '(no output)'}")
         sys.exit(1)
     return result.stdout.strip()
 
@@ -98,10 +151,22 @@ def pull_database(device):
     print("✅ Database pulled")
 
 
+DEVICE_BOOKS_PATHS = ["/sdcard/books", "/sdcard/Books", "/sdcard/Download", "/sdcard"]
+
 def pull_books(device):
     print("🔍 Finding epub files on device...")
-    output = run_adb(["-s", device, "shell", "find", "/sdcard", "-name", "*.epub", "-type", "f"])
-    paths = [p.strip() for p in output.splitlines() if p.strip()]
+    # Search known book locations first, fall back to full sdcard scan
+    paths = []
+    for search_path in DEVICE_BOOKS_PATHS:
+        output = run_adb(["-s", device, "shell", "find", search_path,
+                          "-maxdepth", "3", "-name", "*.epub", "-type", "f"])
+        found = [p.strip() for p in output.splitlines() if p.strip()]
+        if found:
+            paths = found
+            print(f"  Found {len(found)} epub(s) in {search_path}")
+            break
+    if not paths:
+        print("⚠ No epub files found on device")
 
     os.makedirs(BOOKS_DIR, exist_ok=True)
 
@@ -120,30 +185,8 @@ def pull_books(device):
     return pulled
 
 
-class _ParagraphExtractor(HTMLParser):
-    def __init__(self):
-        super().__init__()
-        self.paragraphs = []
-        self._in_p = False
-        self._buf = []
-
-    def handle_starttag(self, tag, *_):
-        if tag == "p":
-            self._in_p = True
-            self._buf = []
-
-    def handle_endtag(self, tag):
-        if tag == "p" and self._in_p:
-            self._in_p = False
-            text = " ".join(self._buf).split()
-            text = " ".join(text)  # collapse whitespace
-            if text:
-                self.paragraphs.append(text)
-
-    def handle_data(self, data):
-        if self._in_p:
-            self._buf.append(data)
-
+_P_RE  = re.compile(r'<p[^>]*>(.*?)</p>', re.DOTALL | re.IGNORECASE)
+_TAG_RE = re.compile(r'<[^>]+>')
 
 def extract_paragraphs(epub_path):
     paragraphs = []
@@ -151,27 +194,28 @@ def extract_paragraphs(epub_path):
         with zipfile.ZipFile(epub_path) as zf:
             for name in zf.namelist():
                 if name.endswith((".html", ".xhtml", ".htm")):
-                    content = zf.read(name).decode("utf-8", errors="ignore")
-                    parser = _ParagraphExtractor()
                     try:
-                        parser.feed(content)
+                        content = zf.read(name).decode("utf-8", errors="ignore")
+                        for m in _P_RE.finditer(content):
+                            text = _TAG_RE.sub("", m.group(1))
+                            text = " ".join(text.split())
+                            if text:
+                                paragraphs.append(text)
                     except Exception as e:
-                        print(f"    ⚠ parse error in {name}: {e}")
-                    paragraphs.extend(parser.paragraphs)
+                        print(f"    ⚠ skipping {name}: {e}")
     except zipfile.BadZipFile:
         print(f"  ⚠ skipping corrupt file: {os.path.basename(epub_path)}")
     return paragraphs
 
 
-def trim_to_context(paragraph, word, before=5, after=5):
+def extract_sentence(paragraph: str, word: str) -> str:
+    """Return the single sentence in paragraph that contains word."""
     sentences = _SENTENCE_BREAK.split(paragraph.strip())
     word_lower = word.lower()
-    target = next((i for i, s in enumerate(sentences) if word_lower in s.lower()), None)
-    if target is None:
-        return " ".join(sentences[:before + after + 1])
-    start = max(0, target - before)
-    end = min(len(sentences), target + after + 1)
-    return " ".join(sentences[start:end])
+    for s in sentences:
+        if word_lower in s.lower():
+            return s.strip()
+    return sentences[0].strip() if sentences else paragraph
 
 
 def find_local_epubs():
@@ -228,8 +272,27 @@ def export_json(output=None):
     rows = [dict(row) for row in cursor.fetchall()]
     conn.close()
 
-    # Parse epubs for occurrences
+    # Hardcover status check
+    read_titles, hardcover_ok = fetch_read_books()
+    if not HARDCOVER_TOKEN:
+        _log("⚠ HARDCOVER_TOKEN not set — scanning all local books (no occurrence limit removed)")
+    elif hardcover_ok:
+        _log(f"✅ Hardcover connected — {len(read_titles)} book(s) marked as read, unlimited occurrences")
+    else:
+        _log("⚠ Hardcover API unavailable — falling back to all local books")
+
+    # Parse epubs for occurrences — filter to read books if Hardcover connected
     epubs = find_local_epubs()
+    if hardcover_ok and read_titles and epubs:
+        filtered = {p: d for p, d in epubs.items()
+                    if any(_normalize_title(d) in rt or rt in _normalize_title(d)
+                           for rt in read_titles)}
+        if filtered:
+            _log(f"📖 Filtered to {len(filtered)}/{len(epubs)} epub(s) you have read")
+            epubs = filtered
+        else:
+            _log(f"⚠ No local epubs matched Hardcover read list — using all {len(epubs)}")
+
     paragraph_cache = {}
     if epubs:
         _log(f"📖 Parsing {len(epubs)} epub(s)...")
@@ -243,21 +306,30 @@ def export_json(output=None):
         if not paragraph_cache:
             return []
         pattern = re.compile(r'\b' + re.escape(word) + r'\w*', re.IGNORECASE)
-        return [
-            {"book": display, "paragraph": trim_to_context(para, word)}
-            for display, paragraphs in paragraph_cache.values()
-            for para in paragraphs
-            if pattern.search(para)
-        ]
+        results = []
+        for display, paragraphs in paragraph_cache.values():
+            for para in paragraphs:
+                if pattern.search(para):
+                    results.append({"book": display, "paragraph": extract_sentence(para, word)})
+                    if not hardcover_ok and len(results) >= 10:
+                        return results
+        return results
 
     new_count = 0
-    for row in rows:
+    if paragraph_cache:
+        _log(f"🔎 Computing occurrences for {len(rows)} word(s)...")
+    for i, row in enumerate(rows, 1):
+        if paragraph_cache:
+            _progress(i, len(rows), row["word"][:40])
         key = row["word"].lower()
+        if vocab.get(key, {}).get("deleted"):
+            continue  # skip words the user has deleted
         if key in vocab:
             # Update KOReader-tracked fields only; preserve enriched/imagegen fields
             vocab[key]["review_count"] = row["review_count"]
             vocab[key]["streak_count"] = row["streak_count"]
-            vocab[key]["occurrences"]  = compute_occurrences(row["word"])
+            if paragraph_cache:  # only overwrite occurrences if we have epub data
+                vocab[key]["occurrences"] = compute_occurrences(row["word"])
         else:
             vocab[key] = {
                 "word":             row["word"],
@@ -283,6 +355,8 @@ def export_json(output=None):
             manual = json.load(f)
         for word_str in manual:
             key = word_str.lower()
+            if vocab.get(key, {}).get("deleted"):
+                continue
             if key not in vocab:
                 vocab[key] = {
                     "word":             word_str,
@@ -341,9 +415,20 @@ def fetch_definitions(vocab, output=None):
                 first = meanings[0]
                 defs = first.get("definitions", [])
                 if defs:
+                    entry["phonetic"]      = data[0].get("phonetic", "")
                     entry["part_of_speech"] = first.get("partOfSpeech", "")
-                    entry["definition"] = defs[0].get("definition", "")
-                    entry["example"] = defs[0].get("example") or ""
+                    entry["definition"]    = defs[0].get("definition", "")
+                    entry["example"]       = defs[0].get("example") or ""
+                    # All definitions across all parts of speech
+                    entry["definitions"] = [
+                        {
+                            "part_of_speech": m.get("partOfSpeech", ""),
+                            "definition":     d.get("definition", ""),
+                            "example":        d.get("example") or "",
+                        }
+                        for m in meanings
+                        for d in m.get("definitions", [])
+                    ]
                     synonyms = set()
                     antonyms = set()
                     for meaning in meanings:
@@ -429,15 +514,15 @@ def inspect_database():
 
 
 def main():
-    # devices = get_devices()
-    # device = pick_device(devices)
+    devices = get_devices()
+    device = pick_device(devices)
 
-    # check_koreader(device)
-    # pull_database(device)
-    # pull_books(device)
-    # vocab = export_json() 
+    check_koreader(device)
+    pull_database(device)
+    pull_books(device)
+    vocab = export_json() 
     # read a json
-    vocab = _load_existing_vocab(f"{APP_DIR}/vocab.json")
+    # vocab = _load_existing_vocab(f"{APP_DIR}/vocab.json")
     fetch_definitions(vocab)
     fetch_translations(vocab)
     _write_log()

@@ -171,7 +171,7 @@ class Handler(BaseHTTPRequestHandler):
             if word not in vocab:
                 self._json({"error": f"word not found: {word}"}, 404)
                 return
-            del vocab[word]
+            vocab[word]["deleted"] = True
             _write_vocab(vocab)
             self._json({"ok": True})
         else:
@@ -253,10 +253,14 @@ class Handler(BaseHTTPRequestHandler):
         entry = {
             "word":              raw,
             "definition":        body.get("definition", ""),
+            "phonetic":          "",
+            "definitions":       [],
             "translation":       body.get("translation", {}),
             "images":            [],
             "default_image":     None,
             "flagged_for_regen": False,
+            "learnt":            False,
+            "deleted":           False,
             "enriched":          False,
         }
         vocab[key] = entry
