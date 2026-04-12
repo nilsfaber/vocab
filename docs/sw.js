@@ -1,13 +1,13 @@
 const CACHE = 'vocab-v68';
 const SHELL = [
-  './',
-  './index.html',
-  './vocab.css',
-  './vocab.js',
-  './manifest.json',
-  './icons.svg',
-  './icons/icon-192.svg',
-  './icons/icon-512.svg',
+  '/',
+  '/index.html',
+  '/vocab.css',
+  '/vocab.js',
+  '/manifest.json',
+  '/icons.svg',
+  '/icons/icon-192.svg',
+  '/icons/icon-512.svg',
 ];
 
 self.addEventListener('install', e => {
@@ -41,7 +41,7 @@ self.addEventListener('fetch', e => {
   // Navigation requests: serve cached index.html so app always loads
   if (e.request.mode === 'navigate') {
     e.respondWith(
-      caches.match('./index.html').then(cached => cached || fetch(e.request))
+      caches.match('index.html').then(cached => cached || fetch(e.request))
     );
     return;
   }
