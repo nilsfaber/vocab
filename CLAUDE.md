@@ -189,12 +189,24 @@ Update `README.md` whenever functionality changes — new features, changed comm
 ---
 
 ## Backlog
-#### the definition in the word-info-panel should have room for at leat two definitions to be shown.
-#### rework the prompt generation, i do not get 'contextualised' images but generic images
-is ollama overruling my base prompt in imagegen html?
+
+#### theming — ereader compat
+on my ereader in einkbro browser, the dot, prev and next button do not show, the settings button etc do show.
+on my ereader in neobrowser the context row is not filling up the full pillshape, it's all in the upper left corner. Is the styling/html fully compliant with standards or are the browsers at fault?
+Note: `top/right/bottom/left` fallbacks already added alongside `inset: 0` for NeoBrowser. May need further investigation on device.
+
+in chrome and firefox on android the app seems to not take into account the browsers' vertical space or the area where the camera no-go-zone is, in word mode the main image is vertically overflowing on the top of the screen.
+Note: `safe-area-inset-bottom` added to panel-controls. Image `max-height: clamp(180px, 35vh, 420px)` added. May need `viewport-fit=cover` in meta and/or `dvh` units for full fix.
+
+#### fix scroll position when going to game mode so the game is visible
+
 
 
 ### low priority
+
+#### rework the prompt generation, i do not get 'contextualised' images but generic images
+is ollama overruling my base prompt in imagegen html?
+
 #### 17 — Predict unknown words
 Analyse library text to suggest words the user likely doesn't know.
 

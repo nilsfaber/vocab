@@ -349,12 +349,16 @@ function autoHeight(ta) {
   ta.style.height = 'auto';
   ta.style.height = ta.scrollHeight + 'px';
 }
-[promptEdit, refinerEdit, negativeEdit].forEach(ta => {
-  if (ta) ta.addEventListener('input', () => autoHeight(ta));
-});
-function resetPromptHeight() {
-  [promptEdit, refinerEdit, negativeEdit].forEach(ta => autoHeight(ta));
+// Only def-edit and the base prompt auto-expand; refiner/negative are fixed-height scrollable
+function autoHeightAll() {
+  [defEdit, promptEdit].forEach(ta => autoHeight(ta));
 }
+if (promptEdit) promptEdit.addEventListener('input', () => autoHeight(promptEdit));
+if (defEdit)    defEdit.addEventListener('input',    () => autoHeight(defEdit));
+function resetPromptHeight() {
+  autoHeight(promptEdit);
+}
+window.addEventListener('resize', autoHeightAll);
 
 // ── Open word view ────────────────────────────────────────────────────────────
 function openWord(word) {
@@ -769,13 +773,34 @@ if (colsBtn) {
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
+const searchClear = document.getElementById('search-clear');
+
+function updateSearchClear() {
+  const hasValue = searchInput.value.length > 0;
+  searchClear?.classList.toggle('visible', hasValue);
+}
+
 searchInput.addEventListener('focus', () => sidebar.classList.add('searching'));
 searchInput.addEventListener('blur', () => {
   setTimeout(() => {
     if (!searchInput.value.trim()) sidebar.classList.remove('searching');
   }, 150);
 });
-searchInput.addEventListener('input', () => filterWords(searchInput.value.trim().toLowerCase()));
+searchInput.addEventListener('input', () => {
+  filterWords(searchInput.value.trim().toLowerCase());
+  updateSearchClear();
+});
+
+if (searchClear) {
+  searchClear.addEventListener('mousedown', e => e.preventDefault()); // keep search focused
+  searchClear.addEventListener('click', () => {
+    searchInput.value = '';
+    filterWords('');
+    updateSearchClear();
+    sidebar.classList.remove('searching');
+    searchInput.focus();
+  });
+}
 
 function filterWords(q) {
   document.querySelectorAll('.word-item').forEach(el => {

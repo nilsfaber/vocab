@@ -22,16 +22,21 @@
 <nav id="sidebar">
   <div id="panel-words">
     <div id="word-list"></div>
-    <div id="search-wrap">
-      <svg class="icon search-icon"><use href="icons.svg#icon-search"/></svg>
-      <input id="search" type="search" placeholder="Search…" autocomplete="off">
+    <div id="search-row">
+      <div id="search-wrap">
+        <svg class="icon search-icon"><use href="icons.svg#icon-search"/></svg>
+        <input id="search" type="search" placeholder="Search…" autocomplete="off">
+        <button id="search-clear" title="Clear search">
+          <svg class="icon"><use href="icons.svg#icon-x"/></svg>
+        </button>
+      </div>
+      <select id="sort-by" title="Sort order">
+        <option value="alpha">A – Z</option>
+        <option value="date">Date added</option>
+        <option value="occurrences">Occurrences</option>
+        <option value="score">Score</option>
+      </select>
     </div>
-    <select id="sort-by" title="Sort order">
-      <option value="alpha">A – Z</option>
-      <option value="date">Date added</option>
-      <option value="occurrences">Occurrences</option>
-      <option value="score">Score</option>
-    </select>
   </div>
 </nav>
 
@@ -168,10 +173,10 @@
       <div id="stats-rows"></div>
     </div>
 
-    <div id="occurrences-section" style="display:none">
-      <div id="occurrences-heading">Occurrences</div>
+    <details id="occurrences-section" style="display:none">
+      <summary id="occurrences-heading">Occurrences</summary>
       <div id="occurrences-list"></div>
-    </div>
+    </details>
   </div>
 </main>
 

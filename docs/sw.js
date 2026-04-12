@@ -1,4 +1,4 @@
-const CACHE = 'vocab-v59';
+const CACHE = 'vocab-v68';
 const SHELL = [
   './',
   './index.html',
