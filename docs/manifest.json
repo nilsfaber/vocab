@@ -2,7 +2,7 @@
   "name": "Vocabulary Builder",
   "short_name": "Vocab",
   "description": "Review and quiz vocabulary words from your KOReader library",
-  "start_url": "/",
+  "start_url": ".",
   "display": "standalone",
   "background_color": "#0f1117",
   "theme_color": "#7c6af7",
