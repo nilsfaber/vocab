@@ -16,9 +16,13 @@ import argparse
 import json
 import mimetypes
 import queue
+import re
 import subprocess
 import sys
 import threading
+import time
+import urllib.error
+import urllib.request
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -91,7 +95,8 @@ def list_scripts() -> list[str]:
 
 
 class Handler(BaseHTTPRequestHandler):
-    def log_message(self, *_): pass  # suppress access log
+    def log_message(self, fmt, *args): pass  # suppress access log
+    def log_error(self, fmt, *args): print(f"[server error] {fmt % args}", flush=True)
 
     def _json(self, data, status: int = 200) -> None:
         body = json.dumps(data).encode()
@@ -174,6 +179,30 @@ class Handler(BaseHTTPRequestHandler):
             vocab[word]["deleted"] = True
             _write_vocab(vocab)
             self._json({"ok": True})
+        elif path == "/api/image":
+            length   = int(self.headers.get("Content-Length", 0))
+            body     = json.loads(self.rfile.read(length) or b"{}")
+            word     = (body.get("word") or "").strip().lower()
+            filename = (body.get("filename") or "").strip()
+            if not word or not filename:
+                self._json({"error": "word and filename required"}, 400)
+                return
+            vocab = _read_vocab()
+            if word not in vocab:
+                self._json({"error": f"word not found: {word}"}, 404)
+                return
+            entry = vocab[word]
+            # Remove from images list
+            entry["images"] = [i for i in entry.get("images", []) if i["filename"] != filename]
+            # Clear default_image if it was this file
+            if entry.get("default_image") == filename:
+                entry["default_image"] = entry["images"][-1]["filename"] if entry["images"] else None
+            _write_vocab(vocab)
+            # Delete physical file
+            img_path = REPO_ROOT / "imagegen" / "words" / word / filename
+            if img_path.exists():
+                img_path.unlink()
+            self._json({"ok": True, "default_image": entry.get("default_image")})
         else:
             self._json({"error": "not found"}, 404)
 
@@ -187,6 +216,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/add-word":
             self._handle_add_word()
+            return
+        if path == "/api/reenrich":
+            self._handle_reenrich()
             return
         if path != "/api/run":
             self._json({"error": "not found"}, 404)
@@ -258,11 +290,97 @@ class Handler(BaseHTTPRequestHandler):
             "translation":       body.get("translation", {}),
             "images":            [],
             "default_image":     None,
-            "flagged_for_regen": False,
+            "flagged_for_regen": True,
             "learnt":            False,
             "deleted":           False,
             "enriched":          False,
         }
+        vocab[key] = entry
+        _write_vocab(vocab)
+        self._json({"ok": True, "entry": entry})
+
+    def _handle_reenrich(self) -> None:
+        length = int(self.headers.get("Content-Length", 0))
+        body   = json.loads(self.rfile.read(length) or b"{}")
+        key    = (body.get("word") or "").strip().lower()
+        if not key:
+            self._json({"error": "word required"}, 400)
+            return
+        vocab = _read_vocab()
+        if key not in vocab:
+            self._json({"error": f"word not found: {key}"}, 404)
+            return
+        entry = vocab[key]
+        word  = entry.get("word", key)
+
+        # Fetch from dictionaryapi.dev
+        try:
+            url = f"https://api.dictionaryapi.dev/api/v2/entries/en/{urllib.request.quote(word)}"
+            req = urllib.request.Request(url, headers={"User-Agent": "vocab-builder/1.0"})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = json.loads(resp.read())
+            meanings = data[0].get("meanings", [])
+            if meanings:
+                first = meanings[0]
+                defs  = first.get("definitions", [])
+                if defs:
+                    entry["phonetic"]       = data[0].get("phonetic", "") or entry.get("phonetic", "")
+                    entry["part_of_speech"] = first.get("partOfSpeech", "")
+                    entry["definition"]     = defs[0].get("definition", "")
+                    entry["example"]        = defs[0].get("example") or ""
+                    entry["definitions"]    = [
+                        {"part_of_speech": m.get("partOfSpeech",""), "definition": d.get("definition",""), "example": d.get("example") or ""}
+                        for m in meanings for d in m.get("definitions", [])
+                    ]
+                    synonyms, antonyms = set(), set()
+                    for m in meanings:
+                        synonyms.update(m.get("synonyms", []))
+                        antonyms.update(m.get("antonyms", []))
+                        for d in m.get("definitions", []):
+                            synonyms.update(d.get("synonyms", []))
+                            antonyms.update(d.get("antonyms", []))
+                    entry["synonyms"] = sorted(synonyms)
+                    entry["antonyms"] = sorted(antonyms)
+                    entry["enriched"] = True
+        except Exception:
+            pass
+
+        # Supplement with Datamuse
+        def _datamuse(rel, w):
+            url = f"https://api.datamuse.com/words?rel_{rel}={urllib.request.quote(w)}&max=30"
+            req = urllib.request.Request(url, headers={"User-Agent": "vocab-builder/1.0"})
+            with urllib.request.urlopen(req, timeout=5) as r:
+                return [x["word"] for x in json.loads(r.read())]
+        word_lower = word.lower()
+        word_stem  = re.sub(r'(ing|ed|s|er|est|ly)$', '', word_lower)
+        try:
+            dm_syns = [w for w in _datamuse("syn", word) if w.lower() != word_lower and word_stem not in w.lower()]
+            entry["synonyms"] = sorted(set(entry.get("synonyms", [])) | set(dm_syns))
+        except Exception:
+            pass
+        try:
+            dm_ants = [w for w in _datamuse("ant", word) if w.lower() != word_lower]
+            entry["antonyms"] = sorted(set(entry.get("antonyms", [])) | set(dm_ants))
+        except Exception:
+            pass
+
+        # Fetch translation if missing
+        lang = "nl"
+        if not entry.get("translation", {}).get(lang):
+            try:
+                url = f"https://api.mymemory.translated.net/get?q={urllib.request.quote(word)}&langpair=en|{lang}"
+                req = urllib.request.Request(url, headers={"User-Agent": "vocab-builder/1.0"})
+                with urllib.request.urlopen(req, timeout=8) as resp:
+                    tdata = json.loads(resp.read())
+                translated  = tdata.get("responseData", {}).get("translatedText", "").strip()
+                match_score = float(tdata.get("responseData", {}).get("match", 0) or 0)
+                if translated and match_score >= 0.5:
+                    if "translation" not in entry:
+                        entry["translation"] = {}
+                    entry["translation"][lang] = translated
+            except Exception:
+                pass
+
         vocab[key] = entry
         _write_vocab(vocab)
         self._json({"ok": True, "entry": entry})

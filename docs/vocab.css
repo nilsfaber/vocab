@@ -106,20 +106,35 @@ body {
 .word-item:hover { background: var(--hover-bg); }
 .word-item.active { background: rgba(124,159,255,0.18); color: var(--accent); }
 
-.no-default-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--red);
+/* Fixed-width dot slot — keeps word-meta column aligned */
+.dot-slot {
+  width: 10px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.word-dot {
+  width: 7px;
+  height: 7px;
   flex-shrink: 0;
 }
-
-.regen-dot {
-  width: 6px;
-  height: 6px;
+/* New unseen image — blue diamond */
+.dot-new {
+  background: #5599ff;
+  transform: rotate(45deg);
+  border-radius: 1px;
+}
+/* Flagged for regen — filled square */
+.dot-regen {
+  background: var(--text-dim);
+  border-radius: 1px;
+}
+/* No default image — hollow circle */
+.dot-missing {
   border-radius: 50%;
-  background: #f0a040;
-  flex-shrink: 0;
+  border: 1.5px solid var(--text-dim);
+  background: transparent;
 }
 
 /* Sort select */
@@ -209,11 +224,9 @@ body {
 }
 .ctx-panel.active { display: flex; }
 
-/* Gallery + word ctx: equal-width buttons, no gap so dividers are seamless */
-#ctx-gallery { padding: 0; gap: 0; }
-#ctx-gallery .ctx-btn { flex: 1; }
-#ctx-word { padding: 0; gap: 0; }
-#ctx-word .ctx-btn { flex: 1; }
+/* All ctx panels: zero gap/padding so dividers are seamless, buttons fill evenly */
+#ctx-gallery, #ctx-word { padding: 0; gap: 0; }
+#ctx-gallery .ctx-btn, #ctx-word .ctx-btn { flex: 1; }
 
 #ctx-game { justify-content: center; gap: 8px; padding: 0 14px; }
 #ctx-game strong { color: var(--text); font-weight: 700; }
@@ -246,7 +259,6 @@ body {
 }
 .ctx-btn:first-child { border-left: none; }
 .ctx-btn:hover { background: var(--hover-bg); color: var(--text); }
-.ctx-btn.icon-only { width: 44px; padding: 0; justify-content: center; }
 
 /* ── Control row (ui-toggle + view pill) ── */
 #control-row {
@@ -320,6 +332,9 @@ body {
   white-space: nowrap;
 }
 #queue-indicator.visible { display: flex; }
+/* The segment wrapping the queue indicator — non-interactive when empty */
+.ctx-queue-segment { cursor: default; }
+.ctx-queue-segment:hover { background: transparent; color: var(--text-dim); }
 
 /* ── Hamburger (sidebar collapsed) ── */
 #open-sidebar {
@@ -401,7 +416,8 @@ body {
 
 /* Main image */
 #main-image-wrap {
-  width: 100%;
+  align-self: center;
+  max-width: 100%;
   border-radius: 14px;
   overflow: hidden;
   box-shadow: 0 8px 40px rgba(0,0,0,0.6);
@@ -411,11 +427,16 @@ body {
   position: relative;
 }
 #main-image-wrap img {
-  width: 100%;
   display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: clamp(180px, 35vh, 420px);
 }
 #main-image-wrap.no-image {
+  width: 100%;
   aspect-ratio: 4/3;
+  max-height: clamp(180px, 35vh, 420px);
   cursor: default;
 }
 #main-image-wrap.no-image img { display: none; }
@@ -541,6 +562,24 @@ body {
   font-size: 10px;
   color: rgba(255,255,255,0.7);
 }
+.alt-delete-btn {
+  position: absolute;
+  top: 4px; right: 4px;
+  width: 22px; height: 22px;
+  border-radius: 5px;
+  background: rgba(0,0,0,0.55);
+  border: none;
+  color: rgba(255,255,255,0.7);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.alt-thumb:hover .alt-delete-btn { opacity: 1; }
+.alt-delete-btn:hover { color: #fff; background: rgba(200,50,50,0.7); }
 
 /* ── Occurrences panel ── */
 #occurrences-section {
@@ -744,30 +783,29 @@ details.occurrence-item summary::-webkit-details-marker { display: none; }
   object-fit: contain;
 }
 
-/* ── Word info panel (single card, two columns with vertical divider) ── */
+/* ── Word info panel (flat column layout) ── */
 #word-info-panel {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-radius: 12px;
   backdrop-filter: var(--glass-blur);
   overflow: hidden;
 }
-#word-info-left {
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid var(--glass-border);
-}
-#word-info-right {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+#word-title-bar {
+  border-bottom: 1px solid var(--glass-border);
 }
 
-/* Left: definition textarea */
+/* Definition area */
+#def-area {
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
 #def-edit {
-  flex: 1;
   display: block;
   width: 100%;
   background: transparent;
@@ -775,30 +813,33 @@ details.occurrence-item summary::-webkit-details-marker { display: none; }
   color: var(--text);
   font-size: 12.5px;
   line-height: 1.6;
-  padding: 8px 12px 10px;
+  padding: 0;
   resize: none;
   overflow: hidden;
   outline: none;
   font-family: inherit;
-  cursor: default;
+  min-height: 0;
 }
-#def-edit:not([readonly]) { cursor: text; }
+#def-edit:empty, #def-edit[value=""] { display: none; }
 #def-edit::placeholder { color: var(--text-dim); }
 
-/* ── Full definitions list (from dictionary) ── */
+/* ── Definitions list (from dictionary) ── */
 #definitions-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 6px 14px 10px;
 }
 #definitions-list:empty { display: none; }
+
+/* Collapse to first entry by default */
+#definitions-list:not(.expanded) .def-entry ~ .def-entry { display: none; }
+
 .def-entry {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 5px;
-  font-size: 12px;
+  font-size: 12.5px;
   color: rgba(255,255,255,0.65);
   line-height: 1.5;
 }
@@ -818,9 +859,79 @@ details.occurrence-item summary::-webkit-details-marker { display: none; }
   font-size: 11px;
   padding-left: 2px;
 }
+#def-more-btn {
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  opacity: 0.8;
+}
+#def-more-btn:hover { opacity: 1; }
+
+/* ── 3-column row: Dutch / Synonyms / Antonyms ── */
+#word-info-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+.info-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 12px 10px;
+  border-right: 1px solid var(--glass-border);
+  min-width: 0;
+  overflow: hidden;
+}
+.info-col:last-child { border-right: none; }
+.info-col-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: rgba(255,255,255,0.3);
+  flex-shrink: 0;
+}
+.info-col input {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+  font-family: inherit;
+  width: 100%;
+  padding: 0;
+  cursor: default;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.info-col input:not([readonly]) { cursor: text; }
+.info-col input::placeholder { color: var(--text-dim); }
 
 /* ── Per-mode game stats rows ── */
-.stats-row { gap: 6px; }
+#stats-rows {
+  display: flex;
+  flex-direction: column;
+}
+.stats-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-top: 1px solid var(--glass-border);
+}
+.stats-row-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255,255,255,0.3);
+  flex-shrink: 0;
+  width: 64px;
+}
 .stats-bar-wrap {
   flex: 1;
   height: 4px;
@@ -848,38 +959,14 @@ details.occurrence-item summary::-webkit-details-marker { display: none; }
   text-align: right;
 }
 
-/* Right: inline label + value rows */
-.info-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 6px 0 12px;
-  min-height: 44px;
-  border-bottom: 1px solid var(--glass-border);
-}
-.info-row:last-child { border-bottom: none; }
 .info-row-label {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: rgba(255,255,255,0.3);
   flex-shrink: 0;
-  width: 58px;
+  width: 64px;
 }
-.info-row input {
-  flex: 1;
-  min-width: 0;
-  background: transparent;
-  border: none;
-  color: var(--text);
-  font-size: 12.5px;
-  outline: none;
-  font-family: inherit;
-  cursor: default;
-  padding: 0;
-}
-.info-row input:not([readonly]) { cursor: text; }
-.info-row input::placeholder { color: var(--text-dim); }
 
 
 
@@ -1020,15 +1107,6 @@ details.occurrence-item summary::-webkit-details-marker { display: none; }
   flex-direction: column;
   gap: 10px;
 }
-.game-score-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 12px;
-  color: var(--text-dim);
-  padding: 0 2px;
-}
-.game-score-row span { color: var(--text); font-weight: 700; }
 .clue-card {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
@@ -1183,13 +1261,6 @@ details.occurrence-item summary::-webkit-details-marker { display: none; }
 }
 #create-word-btn:hover { background: rgba(124,159,255,0.32); }
 
-/* ── Unseen images dot (blue) ── */
-.new-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: #5599ff;
-  flex-shrink: 0;
-}
 
 /* ── Sync status toast (PWA) ── */
 #sync-status {
@@ -1511,7 +1582,9 @@ body.ui-hidden #view-pill {
 [data-theme="light"] #pool-label       { color: var(--text-dim); }
 [data-theme="light"] .def-entry        { color: rgba(0,0,0,0.65); }
 [data-theme="light"] .def-example      { color: rgba(0,0,0,0.42); }
-[data-theme="light"] .info-row-label   { color: rgba(0,0,0,0.35); }
+[data-theme="light"] .info-row-label, [data-theme="light"] .info-col-label, [data-theme="light"] .stats-row-label { color: rgba(0,0,0,0.35); }
+[data-theme="light"] .info-col input   { color: var(--text); }
+[data-theme="light"] #def-more-btn     { opacity: 0.7; }
 [data-theme="light"] .occurrence-summary { color: rgba(0,0,0,0.6); }
 [data-theme="light"] .occurrence-summary::before { color: rgba(0,0,0,0.35); }
 [data-theme="light"] .occurrence-para  { color: rgba(0,0,0,0.6); }
@@ -1527,7 +1600,6 @@ body.ui-hidden #view-pill {
 [data-theme="light"] #settings-modal,
 [data-theme="light"] #wotd-modal       { background: rgba(0,0,0,0.5); }
 [data-theme="light"] #lightbox         { background: rgba(255,255,255,0.95); }
-[data-theme="light"] .game-score-row   { color: var(--text-dim); }
 [data-theme="light"] .word-meta        { color: var(--text-dim); }
 [data-theme="light"] #clue-source      { color: var(--text-dim); }
 [data-theme="light"] #wotd-label       { color: var(--accent); }
@@ -1611,7 +1683,8 @@ body.ui-hidden #view-pill {
 [data-theme="epaper"] .def-entry        { color: rgba(0,0,0,0.7); }
 [data-theme="epaper"] .def-example      { color: rgba(0,0,0,0.5); }
 [data-theme="epaper"] .def-pos          { color: #000; opacity: 0.7; }
-[data-theme="epaper"] .info-row-label   { color: rgba(0,0,0,0.42); }
+[data-theme="epaper"] .info-row-label, [data-theme="epaper"] .info-col-label, [data-theme="epaper"] .stats-row-label { color: rgba(0,0,0,0.42); }
+[data-theme="epaper"] .info-col input   { color: #000; }
 [data-theme="epaper"] .occurrence-summary { color: rgba(0,0,0,0.6); }
 [data-theme="epaper"] .occurrence-summary::before { color: rgba(0,0,0,0.4); }
 [data-theme="epaper"] .occurrence-para  { color: rgba(0,0,0,0.7); }

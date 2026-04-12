@@ -189,6 +189,10 @@ Update `README.md` whenever functionality changes — new features, changed comm
 ---
 
 ## Backlog
+#### the definition in the word-info-panel should have room for at leat two definitions to be shown.
+#### rework the prompt generation, i do not get 'contextualised' images but generic images
+is ollama overruling my base prompt in imagegen html?
+
 
 ### low priority
 #### 17 — Predict unknown words

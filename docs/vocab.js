@@ -50,9 +50,10 @@ function hasUnseenImages(word) {
 }
 
 // ── Persistence ───────────────────────────────────────────────────────────────
-function saveVocabToStorage() {
-  try { localStorage.setItem('vocab_data', JSON.stringify(vocab)); } catch {}
-}
+// vocab_data localStorage write is intentionally skipped in the PWA — the service
+// worker caches vocab.json (network-first) which is the authoritative offline copy.
+// We keep the read path as a last-resort fallback for very old cached sessions.
+function saveVocabToStorage() { /* no-op: rely on SW cache */ }
 
 async function updateWordField(word, fields) {
   if (vocab[word]) Object.assign(vocab[word], fields);
@@ -110,7 +111,6 @@ async function deleteWord(word) {
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
 const sidebar        = document.getElementById('sidebar');
-const openBtn        = document.getElementById('open-sidebar');
 const searchInput    = document.getElementById('search');
 const wordList       = document.getElementById('word-list');
 const colsBtn        = document.getElementById('cols-btn');
@@ -126,6 +126,7 @@ const flagBtn        = document.getElementById('flag-btn');
 const learntBtn      = document.getElementById('learnt-btn');
 const wordPhonetic   = document.getElementById('word-phonetic');
 const definitionsList = document.getElementById('definitions-list');
+const defMoreBtn     = document.getElementById('def-more-btn');
 const statsRows      = document.getElementById('stats-rows');
 const defEdit        = document.getElementById('def-edit');
 const transEdit      = document.getElementById('trans-edit');
@@ -225,19 +226,17 @@ function renderWordList() {
       item.appendChild(m);
     }
 
-    if (data.flagged_for_regen) {
-      const dot = document.createElement('div');
-      dot.className = 'regen-dot';
-      item.appendChild(dot);
-    } else if (hasUnseenImages(word)) {
-      const dot = document.createElement('div');
-      dot.className = 'new-dot';
-      item.appendChild(dot);
+    // Fixed-width dot slot so word-meta stays aligned regardless of dot presence
+    const dotSlot = document.createElement('div');
+    dotSlot.className = 'dot-slot';
+    if (hasUnseenImages(word)) {
+      dotSlot.innerHTML = '<div class="word-dot dot-new"></div>';
+    } else if (data.flagged_for_regen) {
+      dotSlot.innerHTML = '<div class="word-dot dot-regen"></div>';
     } else if (!data.default_image) {
-      const dot = document.createElement('div');
-      dot.className = 'no-default-dot';
-      item.appendChild(dot);
+      dotSlot.innerHTML = '<div class="word-dot dot-missing"></div>';
     }
+    item.appendChild(dotSlot);
     item.addEventListener('click', () => openWord(word));
     wordList.appendChild(item);
   });
@@ -398,10 +397,12 @@ function openWord(word) {
   // Reset word info edit state
   resetWordInfoEdit();
 
-  // Render full definitions list
+  // Render definitions list
   if (definitionsList) {
+    definitionsList.classList.remove('expanded');
     definitionsList.innerHTML = '';
-    (data.definitions || []).forEach(d => {
+    const defs = data.definitions || [];
+    defs.forEach(d => {
       const entry = document.createElement('div');
       entry.className = 'def-entry';
       const pos  = document.createElement('span');
@@ -420,6 +421,13 @@ function openWord(word) {
       }
       definitionsList.appendChild(entry);
     });
+    // Show def-edit fallback only when no structured definitions
+    if (defEdit) defEdit.style.display = defs.length ? 'none' : 'block';
+    // Show view-more only when >1 definitions exist
+    if (defMoreBtn) {
+      defMoreBtn.style.display = defs.length > 1 ? '' : 'none';
+      defMoreBtn.textContent = 'View more';
+    }
   }
 
   // Render per-mode stats
@@ -438,8 +446,8 @@ function openWord(word) {
       const total = (ms.correct || 0) + (ms.wrong || 0);
       const pct = total ? Math.round(100 * ms.correct / total) : 0;
       const row = document.createElement('div');
-      row.className = 'info-row stats-row';
-      row.innerHTML = `<span class="info-row-label">${label}</span>
+      row.className = 'stats-row';
+      row.innerHTML = `<span class="stats-row-label">${label}</span>
         <span class="stats-bar-wrap"><span class="stats-bar" style="width:${pct}%"></span></span>
         <span class="stats-pct">${pct}%</span>
         <span class="stats-counts">${ms.correct}/${total}</span>`;
@@ -475,6 +483,39 @@ function openWord(word) {
       overlay.textContent = img.filename.replace(`_${img.script}.png`, '');
       thumb.appendChild(overlay);
 
+      // Delete button — imagegen only (requires server)
+      if (VOCAB_SERVER) {
+        const delBtn = document.createElement('button');
+        delBtn.className = 'alt-delete-btn';
+        delBtn.title = 'Delete this image';
+        delBtn.innerHTML = `<svg class="icon"><use href="${ICON_BASE}icons.svg#icon-trash"/></svg>`;
+        delBtn.addEventListener('click', async e => {
+          e.stopPropagation();
+          if (!confirm(`Delete ${img.filename}?`)) return;
+          try {
+            const res = await fetch(`${VOCAB_SERVER}/api/image`, {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ word, filename: img.filename }),
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              alert(`Delete failed: ${err.error || res.status}`);
+              return;
+            }
+            if (vocab[word]) {
+              vocab[word].images = (vocab[word].images || []).filter(i => i.filename !== img.filename);
+              if (vocab[word].default_image === img.filename)
+                vocab[word].default_image = vocab[word].images.at(-1)?.filename || null;
+            }
+            openWord(word);
+            renderWordList();
+            updateGalleryCard(word);
+          } catch { alert('Delete failed — server unreachable'); }
+        });
+        thumb.appendChild(delBtn);
+      }
+
       thumb.addEventListener('click', async () => {
         if (vocab[word]) vocab[word].default_image = img.filename;
         openWord(word);
@@ -489,7 +530,13 @@ function openWord(word) {
 
   renderOccurrences(word);
   markImagesSeen(word);
-  document.querySelectorAll(`.word-item[data-word="${CSS.escape(word)}"] .new-dot`).forEach(d => d.remove());
+  // After marking seen, re-render this item's dot slot
+  document.querySelectorAll(`.word-item[data-word="${CSS.escape(word)}"] .dot-slot`).forEach(slot => {
+    const data2 = vocab[word] || {};
+    slot.innerHTML = '';
+    if (data2.flagged_for_regen) slot.innerHTML = '<div class="word-dot dot-regen"></div>';
+    else if (!data2.default_image) slot.innerHTML = '<div class="word-dot dot-missing"></div>';
+  });
 }
 
 // ── View mode: gallery | word | game ─────────────────────────────────────────
@@ -658,6 +705,14 @@ function resetWordInfoEdit() {
   _saveTimer = null;
 }
 
+// ── Definition view-more toggle ───────────────────────────────────────────────
+if (defMoreBtn) {
+  defMoreBtn.addEventListener('click', () => {
+    const expanded = definitionsList?.classList.toggle('expanded');
+    defMoreBtn.textContent = expanded ? 'View less' : 'View more';
+  });
+}
+
 // ── Learnt toggle ─────────────────────────────────────────────────────────────
 if (learntBtn) {
   learntBtn.addEventListener('click', async () => {
@@ -679,14 +734,6 @@ if (flagBtn) {
     flagBtn.classList.toggle('flagged', newVal);
     renderWordList();
     await updateWordField(selectedWord, { flagged_for_regen: newVal });
-  });
-}
-
-// ── Sidebar collapse ──────────────────────────────────────────────────────────
-if (openBtn) {
-  openBtn.addEventListener('click', () => {
-    sidebar.classList.remove('collapsed');
-    openBtn.classList.remove('visible');
   });
 }
 
@@ -763,7 +810,6 @@ if (uiToggle) {
     const eyeIcon = uiVisible ? 'icon-circle-outline' : 'icon-circle';
     uiToggle.innerHTML = `<svg class="icon icon-lg"><use href="${ICON_BASE}icons.svg#${eyeIcon}"/></svg>`;
     sidebar.classList.toggle('collapsed', !uiVisible);
-    if (openBtn) openBtn.classList.toggle('visible', !uiVisible);
   });
 }
 
@@ -826,10 +872,11 @@ function openNewWordMode() {
   if (newWordBar) newWordBar.classList.add('visible');
   if (wordTitle)    wordTitle.textContent    = '';
   if (wordPhonetic) wordPhonetic.textContent = '';
-  if (definitionsList) definitionsList.innerHTML = '';
+  if (definitionsList) { definitionsList.innerHTML = ''; definitionsList.classList.remove('expanded'); }
+  if (defEdit)   { defEdit.value = ''; defEdit.style.display = 'block'; }
+  if (defMoreBtn) defMoreBtn.style.display = 'none';
   mainImage.src  = '';
   mainImage.alt  = '';
-  if (defEdit)   defEdit.value   = '';
   if (transEdit) transEdit.value = '';
   if (synsEdit)  synsEdit.value  = '';
   if (antsEdit)  antsEdit.value  = '';
@@ -1169,7 +1216,7 @@ function gameGuess(value) {
     viewBtn.textContent = 'View card';
     viewBtn.addEventListener('click', () => openWord(gameCurrent));
     solvedEl.appendChild(viewBtn);
-    if (correct && !vocab[gameCurrent]?.learnt) {
+    if (!vocab[gameCurrent]?.learnt) {
       const learnBtn = document.createElement('button');
       learnBtn.textContent = '★ Mark as learnt';
       learnBtn.addEventListener('click', async () => {
@@ -1184,7 +1231,32 @@ function gameGuess(value) {
   }
 }
 
-if (gameNextBtn) gameNextBtn.addEventListener('click', nextGameRound);
+if (gameNextBtn) gameNextBtn.addEventListener('click', () => {
+  if (gameCurrent && !gameAnswered) {
+    // Reveal correct answer on skip without counting it as an attempt
+    document.querySelectorAll('.choice-btn').forEach(btn => {
+      btn.disabled = true;
+      if (btn.dataset.choice === gameCorrectValue) btn.classList.add('correct');
+    });
+    const clueTextEl = document.getElementById('clue-text');
+    const sourceEl   = document.getElementById('clue-source');
+    const currentData = vocab[gameCurrent] || {};
+    const currentWord = currentData.word || gameCurrent;
+    if (clueTextEl) {
+      const pos   = currentData.part_of_speech ? `<em>${gameEsc(currentData.part_of_speech)}</em> ` : '';
+      const parts = [`<strong>${gameEsc(currentWord)}</strong> — ${pos}${gameEsc(currentData.definition || '')}`];
+      const ctx   = buildGameContext(gameCurrent, true);
+      if (ctx) parts.push(`<span style="font-style:italic;color:var(--text-dim)">${ctx}</span>`);
+      clueTextEl.innerHTML = parts.join('<br><br>');
+      if (sourceEl && currentData.example) sourceEl.textContent = `"${currentData.example}"`;
+    }
+    gameAnswered = true;
+    gameNextBtn.textContent = 'Next →';
+    gameNextBtn.classList.add('answered');
+    return;
+  }
+  nextGameRound();
+});
 
 document.addEventListener('keydown', e => {
   if (gameView && gameView.classList.contains('active')) {

@@ -40,10 +40,10 @@
       Score: <strong id="game-score">0</strong> / <strong id="game-attempts">0</strong>
     </div>
     <div id="ctx-gallery" class="ctx-panel active">
-      <button class="ctx-btn icon-only" id="settings-btn" title="Settings">
+      <button class="ctx-btn" id="settings-btn" title="Settings">
         <svg class="icon"><use href="/docs/icons.svg#icon-settings"/></svg>
       </button>
-      <button class="ctx-btn icon-only" id="add-word-btn" title="Add word">
+      <button class="ctx-btn" id="add-word-btn" title="Add word">
         <svg class="icon"><use href="/docs/icons.svg#icon-plus"/></svg>
       </button>
       <button class="ctx-btn" id="cols-btn" title="Columns">
@@ -55,10 +55,12 @@
       <button class="ctx-btn" id="ctx-prev-btn" title="Previous word">
         <svg class="icon"><use href="/docs/icons.svg#icon-arrow-left"/></svg>
       </button>
-      <span id="queue-indicator">
-        <svg class="icon"><use href="/docs/icons.svg#icon-loader"/></svg>
-        <span id="queue-count">0</span> queued
-      </span>
+      <div class="ctx-btn ctx-queue-segment" id="queue-segment">
+        <span id="queue-indicator">
+          <svg class="icon"><use href="/docs/icons.svg#icon-loader"/></svg>
+          <span id="queue-count">0</span> queued
+        </span>
+      </div>
       <button class="ctx-btn" id="ctx-next-btn" title="Next word">
         <svg class="icon"><use href="/docs/icons.svg#icon-arrow-right"/></svg>
       </button>
@@ -126,40 +128,44 @@
       </div>
     </div>
     <div id="word-info-panel">
-      <div id="word-info-left">
-        <div id="word-title-bar">
-          <div id="word-title-group">
-            <div id="word-title"></div>
-            <div id="word-phonetic"></div>
-          </div>
-          <button id="learnt-btn" class="icon-action-btn" title="Mark as learnt">
-            <svg class="icon"><use href="/docs/icons.svg#icon-star"/></svg>
-          </button>
-          <button id="flag-btn" class="icon-action-btn" title="Flag for regeneration">
-            <svg class="icon"><use href="/docs/icons.svg#icon-flag"/></svg>
-          </button>
-          <button id="delete-word-btn" class="icon-action-btn delete-btn" title="Delete word">
-            <svg class="icon"><use href="/docs/icons.svg#icon-trash"/></svg>
-          </button>
+      <div id="word-title-bar">
+        <div id="word-title-group">
+          <div id="word-title"></div>
+          <div id="word-phonetic"></div>
         </div>
-        <textarea id="def-edit" spellcheck="false" placeholder="No definition…" rows="3"></textarea>
-        <div id="definitions-list"></div>
+        <button id="learnt-btn" class="icon-action-btn" title="Mark as learnt">
+          <svg class="icon"><use href="/docs/icons.svg#icon-star"/></svg>
+        </button>
+        <button id="reenrich-btn" class="icon-action-btn" title="Re-fetch definition &amp; synonyms">
+          <svg class="icon"><use href="/docs/icons.svg#icon-refresh"/></svg>
+        </button>
+        <button id="flag-btn" class="icon-action-btn" title="Flag for regeneration">
+          <svg class="icon"><use href="/docs/icons.svg#icon-flag"/></svg>
+        </button>
+        <button id="delete-word-btn" class="icon-action-btn delete-btn" title="Delete word">
+          <svg class="icon"><use href="/docs/icons.svg#icon-trash"/></svg>
+        </button>
       </div>
-      <div id="word-info-right">
-        <div class="info-row">
-          <span class="info-row-label">Dutch</span>
+      <div id="def-area">
+        <div id="definitions-list"></div>
+        <textarea id="def-edit" spellcheck="false" placeholder="No definition…"></textarea>
+        <button id="def-more-btn" style="display:none">View more</button>
+      </div>
+      <div id="word-info-columns">
+        <div class="info-col">
+          <span class="info-col-label">Dutch</span>
           <input id="trans-edit" type="text" spellcheck="false" placeholder="—">
         </div>
-        <div class="info-row">
-          <span class="info-row-label">Synonyms</span>
+        <div class="info-col">
+          <span class="info-col-label">Synonyms</span>
           <input id="syns-edit" type="text" placeholder="—" spellcheck="false">
         </div>
-        <div class="info-row">
-          <span class="info-row-label">Antonyms</span>
+        <div class="info-col">
+          <span class="info-col-label">Antonyms</span>
           <input id="ants-edit" type="text" placeholder="—" spellcheck="false">
         </div>
-        <div id="stats-rows"></div>
       </div>
+      <div id="stats-rows"></div>
     </div>
 
     <div id="alts-section">
@@ -190,6 +196,9 @@
 
 <!-- Lightbox -->
 <div id="lightbox"><img id="lightbox-img" src="" alt=""></div>
+
+<!-- Toast -->
+<div id="sync-status"></div>
 
 <!-- Settings modal -->
 <div id="settings-modal">
@@ -231,6 +240,18 @@
 <script src="/docs/vocab.js"></script>
 <script>
 // ── Imagegen-specific overrides and extensions ────────────────────────────────
+
+// ── Toast helper ─────────────────────────────────────────────────────────────
+const _toastEl = document.getElementById('sync-status');
+let _toastTimer = null;
+function showToast(msg, ok = true) {
+  if (!_toastEl) return;
+  _toastEl.textContent = msg;
+  _toastEl.style.color = ok ? 'var(--accent)' : 'var(--red)';
+  _toastEl.classList.add('visible');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => _toastEl.classList.remove('visible'), 4000);
+}
 
 // Use local server for all API calls
 VOCAB_SERVER = `http://${location.hostname}:8765`;
@@ -383,14 +404,36 @@ function pollJob(job_id) {
         if (ok) {
           const resp = await fetch(`${VOCAB_SERVER}/api/vocab`);
           if (resp.ok) {
-            vocab = await resp.json();
-            if (activeWord && vocab[activeWord]) {
-              const imgs = vocab[activeWord].images || [];
-              const newest = imgs[imgs.length - 1]?.filename;
-              if (newest) vocab[activeWord].default_image = newest;
-            }
-            if (selectedWord) openWord(selectedWord);
+            const freshVocab = await resp.json();
+
+            // Merge: keep local default_image and flagged_for_regen, only update images list
+            Object.entries(freshVocab).forEach(([k, v]) => {
+              if (vocab[k]) {
+                // Preserve default_image: only auto-select newest if word had no image before
+                const hadImage = !!(vocab[k].default_image || (vocab[k].images || []).length);
+                if (!hadImage) {
+                  const imgs = v.images || [];
+                  if (imgs.length) v.default_image = imgs[imgs.length - 1].filename;
+                } else {
+                  v.default_image = vocab[k].default_image;
+                }
+                // Never clear flags during generation
+                v.flagged_for_regen = vocab[k].flagged_for_regen;
+              }
+              vocab[k] = v;
+            });
+
+            // Only re-open the word view if the user is not editing a prompt
+            const editing = [promptEdit, refinerEdit, negativeEdit].some(
+              el => el && el === document.activeElement
+            );
+            if (selectedWord && !editing) openWord(selectedWord);
             renderWordList();
+            // Toast if the completed word is not currently open
+            if (activeWord && activeWord !== selectedWord) {
+              const displayWord = vocab[activeWord]?.word || activeWord;
+              showToast(`✓ ${displayWord} — new image ready`);
+            }
           }
         }
 
@@ -428,6 +471,32 @@ async function applyToDoc(word, filename, verbose = false) {
       appendLine('Cannot reach server.', 'out-err');
     }
   }
+}
+
+// ── Re-enrich ─────────────────────────────────────────────────────────────────
+const reenrichBtn = document.getElementById('reenrich-btn');
+if (reenrichBtn) {
+  reenrichBtn.addEventListener('click', async () => {
+    if (!selectedWord) return;
+    reenrichBtn.disabled = true;
+    showToast('⟳ Fetching definition…', true);
+    try {
+      const res  = await fetch(`${VOCAB_SERVER}/api/reenrich`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ word: selectedWord }),
+      });
+      const data = await res.json();
+      if (data.error) { showToast(`✗ ${data.error}`, false); return; }
+      vocab[selectedWord] = data.entry;
+      openWord(selectedWord);
+      showToast(`✓ ${data.entry.word || selectedWord} — enriched`);
+    } catch {
+      showToast('✗ Re-enrich failed', false);
+    } finally {
+      reenrichBtn.disabled = false;
+    }
+  });
 }
 
 // ── Settings ──────────────────────────────────────────────────────────────────

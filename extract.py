@@ -344,7 +344,7 @@ def export_json(output=None):
                 "occurrences":      compute_occurrences(row["word"]),
                 "images":           [],
                 "default_image":    None,
-                "flagged_for_regen": False,
+                "flagged_for_regen": True,
                 "translation":      {},
             }
             new_count += 1
@@ -364,7 +364,7 @@ def export_json(output=None):
                     "occurrences":      [],
                     "images":           [],
                     "default_image":    None,
-                    "flagged_for_regen": False,
+                    "flagged_for_regen": True,
                     "translation":      {},
                 }
                 new_count += 1
@@ -448,6 +448,27 @@ def fetch_definitions(vocab, output=None):
                 sys.stdout.write(f"\n  ⚠ {word}: HTTP {e.code}\n")
         except Exception as e:
             sys.stdout.write(f"\n  ⚠ {word}: {e}\n")
+
+        # Supplement with Datamuse (richer synonym/antonym coverage, no key needed)
+        try:
+            def _datamuse(rel, w):
+                url = f"https://api.datamuse.com/words?rel_{rel}={urllib.request.quote(w)}&max=30"
+                req = urllib.request.Request(url, headers={"User-Agent": "vocab-builder/1.0"})
+                with urllib.request.urlopen(req, timeout=5) as r:
+                    return [x["word"] for x in json.loads(r.read())]
+            word_lower = word.lower()
+            word_stem  = re.sub(r'(ing|ed|s|er|est|ly)$', '', word_lower)
+            def _filter(words_list):
+                return [w for w in words_list
+                        if w.lower() != word_lower and word_stem not in w.lower()]
+            dm_syns = _filter(_datamuse("syn", word))
+            dm_ants = _filter(_datamuse("ant", word))
+            if dm_syns:
+                entry["synonyms"] = sorted(set(entry.get("synonyms", [])) | set(dm_syns))
+            if dm_ants:
+                entry["antonyms"] = sorted(set(entry.get("antonyms", [])) | set(dm_ants))
+        except Exception:
+            pass
 
         time.sleep(0.3)
 
